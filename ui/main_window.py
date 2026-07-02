@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSplitter,
 from PyQt6.QtGui import QFileSystemModel
 from PyQt6.QtCore import Qt, QDir
 
+from ui.components.sidebar import Sidebar
 from ui.components.code_editor import ModalEditor
 
 class IDEWindow(QMainWindow):
@@ -27,34 +28,25 @@ class IDEWindow(QMainWindow):
         self._apply_theme()
 
     def _setup_ui(self):
-        # --- Sol Panel: Dosya Ağacı (Sidebar) ---
-        self.file_system_model = QFileSystemModel()
-        self.file_system_model.setRootPath(QDir.rootPath())
-        
-        self.tree_view = QTreeView()
-        self.tree_view.setModel(self.file_system_model)
-        self.tree_view.setRootIndex(self.file_system_model.index(os.getcwd()))
-        
-        for i in range(1, 4):
-            self.tree_view.hideColumn(i)
-        self.tree_view.setHeaderHidden(True)
+        #Sol panel - Dosya Sistemi
+        self.sidebar = Sidebar()
 
         # --- Sağ Panel: Kod Editörü ---
-        # Standart editör yerine kendi ModalEditor'ümüzü çağırıyoruz
         self.editor = ModalEditor()
         self.editor.setPlaceholderText("Normal Mod: Yazmak için 'i' tuşuna basın. Çıkmak için 'Esc'.")
 
         # Bileşenleri Splitter'a ekliyoruz
-        self.splitter.addWidget(self.tree_view)
+        self.splitter.addWidget(self.sidebar)
         self.splitter.addWidget(self.editor)
         self.splitter.setSizes([300, 900])
 
         #Çift tıklama sinyalini dinle ve open_file fonksiyonuna yönlendir
-        self.tree_view.doubleClicked.connect(self.open_file)
+        self.sidebar.doubleClicked.connect(self.open_file)
+
 
     def open_file(self, index):
         # Tıklanan öğenin dosya sistemindeki tam yolunu alıyoruz
-        file_path = self.file_system_model.filePath(index)
+        file_path = self.sidebar.get_file_path(index)
         
         # Eğer tıklanan şey bir klasör değil de dosyaysa işlemi başlat
         if os.path.isfile(file_path):
