@@ -1,11 +1,12 @@
 import os
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSplitter, 
-                             QTreeView, QPlainTextEdit)
-from PyQt6.QtGui import QFileSystemModel
-from PyQt6.QtCore import Qt, QDir
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSplitter)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 from ui.components.sidebar import Sidebar
 from ui.components.code_editor import ModalEditor
+from core.file_manager import FileManager
+
 
 class IDEWindow(QMainWindow):
     def __init__(self):
@@ -26,6 +27,7 @@ class IDEWindow(QMainWindow):
         
         self._setup_ui()
         self._apply_theme()
+        self._setup_shortcuts()
 
     def _setup_ui(self):
         #Sol panel - Dosya Sistemi
@@ -43,29 +45,39 @@ class IDEWindow(QMainWindow):
         #Çift tıklama sinyalini dinle ve open_file fonksiyonuna yönlendir
         self.sidebar.doubleClicked.connect(self.open_file)
 
+    def _setup_shortcuts(self):
+        self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.save_shortcut.activated.connect(self.save_file)
 
     def open_file(self, index):
         # Tıklanan öğenin dosya sistemindeki tam yolunu alıyoruz
         file_path = self.sidebar.get_file_path(index)
         
-        # Eğer tıklanan şey bir klasör değil de dosyaysa işlemi başlat
-        if os.path.isfile(file_path):
+        try: 
+            content = FileManager.read_file(file_path)
+            self.editor.setPlainText(content)
+
+            self.current_file_path = file_path
+            self.current_file_name = os.path.basename(file_path)
+
+            self.setWindowTitle(f"DeCode IDE - {self.current_file_name}")     
+    
+        except UnicodeDecodeError:
+            self.editor.setPlainText("HATA: Bu dosya metin formatında değil (Örn: Resim veya derlenmiş dosya).")
+        except Exception as e:
+            self.editor.setPlainText(f"Dosya okunurken bir hata oluştu: {str(e)}")
+    
+    def save_file(self):
+        if self.current_file_path:
             try:
-                # Dosyayı UTF-8 formatında oku
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    content = file.read()
+                content = self.editor.toPlainText()
+                FileManager.save_file(self.current_file_path, content)
                 
-                # İçeriği sağ taraftaki kendi ModalEditor'ümüze bas
-                self.editor.setPlainText(content)
-                
-                # Pencere başlığını açılan dosyanın adıyla güncelle
-                file_name = os.path.basename(file_path)
-                self.setWindowTitle(f"DeCode IDE - {file_name}")
-                
-            except UnicodeDecodeError:
-                self.editor.setPlainText("HATA: Bu dosya metin formatında değil (Örn: Resim veya derlenmiş dosya).")
+                file_name = os.path.basename(self.current_file_path)
+                self.windowTitle(f"DeCode IDE - {file_name} kaydedildi.")
+
             except Exception as e:
-                self.editor.setPlainText(f"Dosya okunurken bir hata oluştu: {str(e)}")
+                self.editor.setPlainText(f"Dosya kaydedilirken bir hata oluştu: {str(e)}")
 
 
     def _apply_theme(self):
