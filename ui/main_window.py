@@ -46,8 +46,13 @@ class IDEWindow(QMainWindow):
         self.sidebar.doubleClicked.connect(self.open_file)
 
     def _setup_shortcuts(self):
+        #Kaydetme Kısayolu (Ctrl+S)
         self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         self.save_shortcut.activated.connect(self.save_file)
+
+        # Dosya Ağacına Odaklanma Kısayolu (Ctrl+B)
+        self.sidebar_shortcut = QShortcut(QKeySequence("Ctrl+B"), self)
+        self.sidebar_shortcut.activated.connect(self.toggle_sidebar_focus)
 
     def open_file(self, index):
         # Tıklanan öğenin dosya sistemindeki tam yolunu alıyoruz
@@ -78,6 +83,13 @@ class IDEWindow(QMainWindow):
 
             except Exception as e:
                 self.editor.setPlainText(f"Dosya kaydedilirken bir hata oluştu: {str(e)}")
+
+    def toggle_sidebar_focus(self):
+            """ Ctrl+B'ye basıldığında odak Sidebar ile Editor arasında gidip gelir. """
+            if self.sidebar.hasFocus():
+                self.editor.setFocus()
+            else:
+                self.sidebar.setFocus()
 
 
     def _apply_theme(self):
