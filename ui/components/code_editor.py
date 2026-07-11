@@ -1,10 +1,15 @@
 from PyQt6.QtWidgets import QPlainTextEdit
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QTextCursor
-from ui.components.syntax_highlighter import CppHighlighter 
+from ui.components.syntax_highlighter import CppHighlighter
 from core.state_machine import StateMachine
 
 class ModalEditor(QPlainTextEdit):
+    save_requested = pyqtSignal()
+    sidebar_toggle_requested = pyqtSignal()
+    telescope_requested = pyqtSignal()
+    quit_requested = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.current_mode = "NORMAL"  # Uygulama başlarken Normal modda başlasın
@@ -29,19 +34,23 @@ class ModalEditor(QPlainTextEdit):
             self.handle_insert_mode(event)
 
     def handle_normal_mode(self, event):
-            """ Normal moddayken tuşlar metin yazmaz, State Machine'e gönderilir. """
+            """ Normal moddayken tuşlar metin yazmaz, State Machine'e gönderilir. ':' ile başlayan komutlar (':w', ':b' vb.) da aynı yoldan, ayrı bir moda geçmeden işlenir. """
             nav_keys = [
                 Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right,
                 Qt.Key.Key_Home, Qt.Key.Key_End, Qt.Key.Key_PageUp, Qt.Key.Key_PageDown
             ]
 
-            if event.key() in nav_keys or event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_Escape:
+                # Bekleyen tuş/komut dizisini iptal eder (NORMAL mod zaten komut modudur)
+                self.state_machine.reset_buffer()
+
+            elif event.key() in nav_keys or event.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 super().keyPressEvent(event)
-                
-            # Geri kalan normal harfleri State Machine'e gönderiyoruz
-            elif event.text() and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+
+            # Geri kalan normal harfleri State Machine'e gönderiyoruz (':' gibi Shift gerektiren tuşlar için Shift de kabul edilir)
+            elif event.text() and event.modifiers() in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ShiftModifier):
                 self.state_machine.process_key(event.text())
-                
+
             else:
                 event.ignore()
 

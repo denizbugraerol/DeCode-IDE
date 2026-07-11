@@ -1,9 +1,11 @@
 import os
 from PyQt6.QtWidgets import QTreeView
 from PyQt6.QtGui import QFileSystemModel
-from PyQt6.QtCore import QDir
+from PyQt6.QtCore import QDir, Qt, pyqtSignal
 
 class Sidebar(QTreeView):
+    return_focus_requested = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self._setup_model()
@@ -28,3 +30,10 @@ class Sidebar(QTreeView):
     def get_file_path(self, index):
         """ Tıklanan öğenin tam dosya yolunu döndüren yardımcı fonksiyon """
         return self.file_system_model.filePath(index)
+
+    def keyPressEvent(self, event):
+        """ Esc tuşuna basılırsa odağı editöre geri verir, böylece komut girmeye kaldığın yerden devam edebilirsin """
+        if event.key() == Qt.Key.Key_Escape:
+            self.return_focus_requested.emit()
+        else:
+            super().keyPressEvent(event)

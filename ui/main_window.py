@@ -1,7 +1,6 @@
 import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSplitter)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QShortcut, QKeySequence
 
 from ui.components.sidebar import Sidebar
 from ui.components.code_editor import ModalEditor
@@ -27,7 +26,6 @@ class IDEWindow(QMainWindow):
         
         self._setup_ui()
         self._apply_theme()
-        self._setup_shortcuts()
 
     def _setup_ui(self):
         #Sol panel - Dosya Sistemi
@@ -35,7 +33,7 @@ class IDEWindow(QMainWindow):
 
         # --- Sağ Panel: Kod Editörü ---
         self.editor = ModalEditor()
-        self.editor.setPlaceholderText("Normal Mod: Yazmak için 'i' tuşuna basın. Çıkmak için 'Esc'.")
+        self.editor.setPlaceholderText("Normal Mod: Yazmak için 'i', komut için ':' tuşuna basın. Çıkmak için 'Esc'.")
 
         # Bileşenleri Splitter'a ekliyoruz
         self.splitter.addWidget(self.sidebar)
@@ -45,14 +43,14 @@ class IDEWindow(QMainWindow):
         #Çift tıklama sinyalini dinle ve open_file fonksiyonuna yönlendir
         self.sidebar.doubleClicked.connect(self.open_file)
 
-    def _setup_shortcuts(self):
-        #Kaydetme Kısayolu (Ctrl+S)
-        self.save_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
-        self.save_shortcut.activated.connect(self.save_file)
+        # Komut satırı (':w', ':b', ':ts', ':qw') sinyallerini dinle
+        self.editor.save_requested.connect(self.save_file)
+        self.editor.sidebar_toggle_requested.connect(self.toggle_sidebar_focus)
+        self.editor.telescope_requested.connect(self.open_telescope_search)
+        self.editor.quit_requested.connect(self.close)
 
-        # Dosya Ağacına Odaklanma Kısayolu (Ctrl+B)
-        self.sidebar_shortcut = QShortcut(QKeySequence("Ctrl+B"), self)
-        self.sidebar_shortcut.activated.connect(self.toggle_sidebar_focus)
+        # Sidebar'dayken Esc'e basılırsa odağı editöre geri ver
+        self.sidebar.return_focus_requested.connect(self.editor.setFocus)
 
     def open_file(self, index):
         # Tıklanan öğenin dosya sistemindeki tam yolunu alıyoruz
@@ -85,11 +83,16 @@ class IDEWindow(QMainWindow):
                 self.editor.setPlainText(f"Dosya kaydedilirken bir hata oluştu: {str(e)}")
 
     def toggle_sidebar_focus(self):
-            """ Ctrl+B'ye basıldığında odak Sidebar ile Editor arasında gidip gelir. """
+            """ ':b' komutuyla odak Sidebar ile Editor arasında gidip gelir. """
             if self.sidebar.hasFocus():
                 self.editor.setFocus()
             else:
                 self.sidebar.setFocus()
+
+    def open_telescope_search(self):
+        """ ':ts' komutuyla tetiklenir — LazyVim'deki Telescope'a benzer bulanık arama modunun temeli.
+        Henüz gerçek bir arama arayüzü yok; Faz 2/3'te ui/components/command_palette.py üzerinden uygulanacak. """
+        print("Telescope arama modu tetiklendi (henüz uygulanmadı).")
 
 
     def _apply_theme(self):
