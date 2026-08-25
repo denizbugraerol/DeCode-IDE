@@ -1,9 +1,10 @@
 import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSplitter)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from ui.components.sidebar import Sidebar
 from ui.components.code_editor import ModalEditor
+from ui.components.bottom_panel import StatusLine, CommandLine, CommandSuggestions
 from core.file_manager import FileManager
 
 
@@ -13,7 +14,11 @@ class IDEWindow(QMainWindow):
         
         self.setWindowTitle("DeCode IDE - v0.1")
         self.setGeometry(100, 100, 1200, 800)
-        
+
+        # Henüz bir dosya açılmadıysa statusline ve save_file bunu güvenle bilsin
+        self.current_file_path = None
+        self.current_file_name = "[No Name]"
+
         # Merkez widget ve ana layout
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -40,6 +45,22 @@ class IDEWindow(QMainWindow):
         self.splitter.addWidget(self.editor)
         self.splitter.setSizes([300, 900])
 
+        # --- Alt Panel: ince statusline (her zaman altta) ---
+        self.status_line = StatusLine()
+        self.main_layout.addWidget(self.status_line)
+
+        # --- Komut satırı: bir bara bağlı değil, ekranın ortasında beliren
+        # yüzen bir kutu (VSCode komut paleti gibi). Sadece COMMAND moddayken görünür. ---
+        self.command_line = CommandLine()
+        self.command_line.setParent(self.central_widget)
+        self.command_line.hide()
+
+        # --- Komut önerileri: komut kutusunun altında, Tab/Shift+Tab ile
+        # gezinilip tamamlanabilen öneri listesi. ---
+        self.command_suggestions = CommandSuggestions()
+        self.command_suggestions.setParent(self.central_widget)
+        self.command_suggestions.hide()
+
         #Çift tıklama sinyalini dinle ve open_file fonksiyonuna yönlendir
         self.sidebar.doubleClicked.connect(self.open_file)
 
@@ -49,8 +70,78 @@ class IDEWindow(QMainWindow):
         self.editor.telescope_requested.connect(self.open_telescope_search)
         self.editor.quit_requested.connect(self.close)
 
+        # Mod, komut satırı ve imleç konumu değiştikçe alt panelleri güncelle
+        self.editor.mode_changed.connect(self._on_mode_changed)
+        self.editor.command_line_changed.connect(self.command_line.set_text)
+        self.editor.command_suggestions_changed.connect(self._on_suggestions_changed)
+        self.editor.cursorPositionChanged.connect(self._update_cursor_position)
+
+        # Alt panellerin başlangıç durumunu editörle senkronla
+        self._on_mode_changed(self.editor.current_mode)
+        self.status_line.set_file(self.current_file_name)
+        self._update_cursor_position()
+
         # Sidebar'dayken Esc'e basılırsa odağı editöre geri ver
         self.sidebar.return_focus_requested.connect(self.editor.setFocus)
+
+    def _on_mode_changed(self, mode):
+        """ Statusline'ı günceller; komut satırı kutusunu (ve açıksa öneri
+        listesini) sadece COMMAND moddayken ekranın ortasında gösterir. """
+        self.status_line.set_mode(mode)
+
+        if mode == "COMMAND":
+            self._position_command_line()
+            self.command_line.show()
+            self.command_line.raise_()
+        else:
+            self.command_line.hide()
+            self.command_suggestions.hide()
+
+    def _on_suggestions_changed(self, matches, selected_index):
+        """ Komut satırındaki metne uyan öneriler değiştikçe (yazarken ya da
+        Tab/Shift+Tab ile gezinirken) öneri kutusunu günceller. """
+        self.command_suggestions.set_suggestions(matches, selected_index)
+
+        if matches and self.editor.current_mode == "COMMAND":
+            # Liste boyutu (ör. 9 satırdan 2'ye) küçüldüğünde Qt'nin layout
+            # önbelleği aynı olay döngüsü turunda doğru boyutu vermiyor;
+            # boyutlandırmayı bir sonraki tur'a erteliyoruz.
+            QTimer.singleShot(0, self._show_command_suggestions)
+        else:
+            self.command_suggestions.hide()
+
+    def _show_command_suggestions(self):
+        if self.editor.current_mode != "COMMAND" or not self.command_suggestions._layout.count():
+            return
+        self.command_suggestions.setFixedWidth(self.command_line.width())
+        self.command_suggestions.adjustSize()
+        self._position_command_suggestions()
+        self.command_suggestions.show()
+        self.command_suggestions.raise_()
+
+    def _position_command_line(self):
+        """ Komut satırı kutusunu merkez widget'ın tam ortasına yerleştirir. """
+        area = self.central_widget.rect()
+        x = (area.width() - self.command_line.width()) // 2
+        y = (area.height() - self.command_line.height()) // 2
+        self.command_line.move(x, y)
+
+    def _position_command_suggestions(self):
+        """ Öneri kutusunu komut satırının hemen altına yerleştirir. """
+        command_line_geometry = self.command_line.geometry()
+        self.command_suggestions.move(command_line_geometry.x(), command_line_geometry.bottom() + 6)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.command_line.isVisible():
+            self._position_command_line()
+        if self.command_suggestions.isVisible():
+            self._position_command_suggestions()
+
+    def _update_cursor_position(self):
+        """ İmleç her hareket ettiğinde statusline'daki satır:sütun bilgisini günceller. """
+        cursor = self.editor.textCursor()
+        self.status_line.set_position(cursor.blockNumber() + 1, cursor.columnNumber() + 1)
 
     def open_file(self, index):
         # Tıklanan öğenin dosya sistemindeki tam yolunu alıyoruz
@@ -63,7 +154,8 @@ class IDEWindow(QMainWindow):
             self.current_file_path = file_path
             self.current_file_name = os.path.basename(file_path)
 
-            self.setWindowTitle(f"DeCode IDE - {self.current_file_name}")     
+            self.setWindowTitle(f"DeCode IDE - {self.current_file_name}")
+            self.status_line.set_file(self.current_file_name)
     
         except UnicodeDecodeError:
             self.editor.setPlainText("HATA: Bu dosya metin formatında değil (Örn: Resim veya derlenmiş dosya).")
@@ -117,5 +209,27 @@ class IDEWindow(QMainWindow):
                 padding: 10px;
             }
             QSplitter::handle { background-color: #1f2335; width: 2px; }
+            QWidget#statusLine {
+                background-color: #1f2335;
+            }
+            QWidget#statusLine QLabel {
+                color: #c0caf5;
+                font-family: 'Fira Code', 'Consolas', monospace;
+                font-size: 11px;
+            }
+            QLabel#commandLine {
+                background-color: #1f2335;
+                color: #c0caf5;
+                border: 1px solid #414868;
+                border-radius: 8px;
+                padding: 4px 12px;
+                font-family: 'Fira Code', 'Consolas', monospace;
+                font-size: 16px;
+            }
+            QWidget#commandSuggestions {
+                background-color: #1f2335;
+                border: 1px solid #414868;
+                border-radius: 8px;
+            }
         """
         self.setStyleSheet(stylesheet)
