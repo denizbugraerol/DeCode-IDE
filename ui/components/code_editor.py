@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QPlainTextEdit, QWidget
 from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QPainter, QColor
-from ui.components.syntax_highlighter import CppHighlighter
+from ui.components.syntax_highlighter import CppHighlighter, PythonHighlighter
 from core.state_machine import StateMachine
 
 
@@ -25,6 +25,7 @@ class ModalEditor(QPlainTextEdit):
     save_requested = pyqtSignal()
     sidebar_toggle_requested = pyqtSignal()
     telescope_requested = pyqtSignal()
+    change_directory_requested = pyqtSignal(str)
     quit_requested = pyqtSignal()
     mode_changed = pyqtSignal(str)
     command_line_changed = pyqtSignal(str)
@@ -50,6 +51,15 @@ class ModalEditor(QPlainTextEdit):
         self.updateRequest.connect(self._update_line_number_area)
         self.cursorPositionChanged.connect(self.line_number_area.update)
         self._update_line_number_area_width(0)
+
+    def set_highlighter_for_file(self, file_path):
+        """ Dosya uzantısına göre uygun syntax highlighter'a geçer: '.py' için
+        PythonHighlighter, diğer her şey için (varsayılan) CppHighlighter. """
+        highlighter_cls = PythonHighlighter if file_path and file_path.lower().endswith(".py") else CppHighlighter
+        if isinstance(self.highlighter, highlighter_cls):
+            return
+        self.highlighter.setDocument(None)
+        self.highlighter = highlighter_cls(self.document())
 
     def keyPressEvent(self, event):
         """

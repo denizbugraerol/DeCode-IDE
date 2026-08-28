@@ -61,13 +61,15 @@ class IDEWindow(QMainWindow):
         self.command_suggestions.setParent(self.central_widget)
         self.command_suggestions.hide()
 
-        #Çift tıklama sinyalini dinle ve open_file fonksiyonuna yönlendir
+        #Çift tıklama, Enter ve (dosyalarda) sağ ok ile açma sinyallerini dinle ve open_file fonksiyonuna yönlendir
         self.sidebar.doubleClicked.connect(self.open_file)
+        self.sidebar.activated.connect(self.open_file)
 
-        # Komut satırı (':w', ':b', ':ts', ':qw') sinyallerini dinle
+        # Komut satırı (':w', ':b', ':ts', ':wq') sinyallerini dinle
         self.editor.save_requested.connect(self.save_file)
         self.editor.sidebar_toggle_requested.connect(self.toggle_sidebar_focus)
         self.editor.telescope_requested.connect(self.open_telescope_search)
+        self.editor.change_directory_requested.connect(self._change_directory)
         self.editor.quit_requested.connect(self.close)
 
         # Mod, komut satırı ve imleç konumu değiştikçe alt panelleri güncelle
@@ -150,6 +152,7 @@ class IDEWindow(QMainWindow):
         try: 
             content = FileManager.read_file(file_path)
             self.editor.setPlainText(content)
+            self.editor.set_highlighter_for_file(file_path)
 
             self.current_file_path = file_path
             self.current_file_name = os.path.basename(file_path)
@@ -186,6 +189,22 @@ class IDEWindow(QMainWindow):
         Henüz gerçek bir arama arayüzü yok; Faz 2/3'te ui/components/command_palette.py üzerinden uygulanacak. """
         print("Telescope arama modu tetiklendi (henüz uygulanmadı).")
 
+    def _change_directory(self, path):
+        """ ':cd [yol]' ile tetiklenir — gerçek Vim'deki :cd gibi çalışma dizinini
+        değiştirir ve Sidebar'ı yeni dizine köklendirir. Argüman verilmemişse
+        (boş string) ana dizine (~) gider. """
+        target = os.path.expanduser(path) if path else os.path.expanduser("~")
+        if not os.path.isabs(target):
+            target = os.path.join(os.getcwd(), target)
+        target = os.path.normpath(target)
+
+        if not os.path.isdir(target):
+            print(f"':cd' başarısız: '{target}' bir dizin değil.")
+            return
+
+        os.chdir(target)
+        self.sidebar.set_root_path(target)
+        print(f"Çalışma dizini değiştirildi: {target}")
 
     def _apply_theme(self):
         # Tokyo Night esintili arayüz renkleri

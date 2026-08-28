@@ -1,3 +1,5 @@
+import os
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor
 
@@ -9,17 +11,17 @@ class StateMachine:
     # Bilinen komutlar ve öneri listesinde gösterilecek açıklamaları.
     # Yeni bir komut eklerken burayı ve _execute_command_line'daki match'i
     # birlikte güncelleyin.
-    KNOWN_COMMANDS = ("n", "d", "w", "b", "c", "v", "qw", "q", "ts")
+    KNOWN_COMMANDS = ("d", "w", "b", "y", "p", "wq", "q", "ts", "cd")
     COMMAND_DESCRIPTIONS = {
-        "n": "yeni satır aç ve Insert moduna gir",
         "d": "geçerli satırı sil",
         "w": "dosyayı kaydet",
         "b": "sidebar/editör arasında odak değiştir",
-        "c": "kopyala",
-        "v": "yapıştır",
-        "qw": "kaydet ve çık",
+        "y": "kopyala",
+        "p": "yapıştır",
+        "wq": "kaydet ve çık",
         "q": "çık",
         "ts": "telescope arama (yakında)",
+        "cd": "çalışma dizinini değiştir (:cd <yol>)",
     }
 
     def __init__(self, editor):
@@ -77,10 +79,41 @@ class StateMachine:
 
     def _matches_for(self, prefix):
         """ Verilen önekle başlayan bilinen komutları (ad, açıklama) çiftleri
-        olarak, alfabetik sırayla döndürür. Önek boşsa hepsini döndürür. """
+        olarak, alfabetik sırayla döndürür. Önek boşsa hepsini döndürür.
+        ':cd <yol>' için (önek 'cd ' ile başlıyorsa) sabit komut listesi yerine
+        dosya sisteminden dizin adı tamamlaması üretilir. """
+        if prefix.startswith("cd "):
+            return self._path_matches_for(prefix)
         names = [c for c in self.KNOWN_COMMANDS if c.startswith(prefix)] if prefix else list(self.KNOWN_COMMANDS)
         names.sort()
         return [(name, self.COMMAND_DESCRIPTIONS.get(name, "")) for name in names]
+
+    def _path_matches_for(self, prefix):
+        """ ':cd <yol>' için shell tarzı dizin adı tamamlaması. 'cd ' sonrasını
+        'hangi dizinde' (head) / 'hangi önekle' (fragment) diye ikiye ayırıp o
+        dizindeki alt dizinleri fragment'e göre filtreler. Sonuçlar sondaki '/'
+        ile döner (ör. 'DeCode-IDE/') — Tab'a tekrar basıp iç içe dizinlere
+        inmeye devam edilebilsin diye. """
+        path_part = prefix[3:]
+        head, fragment = os.path.split(path_part)
+        search_dir = os.path.expanduser(head) if head else "."
+
+        try:
+            entries = os.listdir(search_dir)
+        except OSError:
+            return []
+
+        show_hidden = fragment.startswith(".")
+        names = sorted(
+            name for name in entries
+            if name.startswith(fragment)
+            and (show_hidden or not name.startswith("."))
+            and os.path.isdir(os.path.join(search_dir, name))
+        )
+
+        # Tamamlanan metinde kullanıcının yazdığı 'head' aynen korunur ('~' burada
+        # genişletilmez — sadece arama_dizini için genişletildi, yukarıda).
+        return [(f"cd {os.path.join(head, name)}/", "") for name in names]
 
     def _refresh_suggestions(self):
         """ Yazma/silme sonrası (Tab dışı her değişiklikte) tamamlama döngüsünü
@@ -119,21 +152,24 @@ class StateMachine:
 
         if text.isdigit():
             self._goto_line(int(text))
+        elif text == "cd" or text.startswith("cd "):
+            # ':cd [yol]' — gerçek Vim'deki gibi çalışma dizinini değiştirir.
+            # Argümansızsa (sadece 'cd') boş string yollanır: ana dizine gidilir.
+            path = text[2:].strip()
+            self.editor.change_directory_requested.emit(path)
         else:
             match text:
-                case "n":
-                    self._open_new_line()
                 case "d":
                     self._delete_current_line()
                 case "w":
                     self.editor.save_requested.emit()
                 case "b":
                     self.editor.sidebar_toggle_requested.emit()
-                case "c":
+                case "y":
                     self.editor.copy()
-                case "v":
+                case "p":
                     self.editor.paste()
-                case "qw":
+                case "wq":
                     self.editor.save_requested.emit()
                     self.editor.quit_requested.emit()
                 case "q":
@@ -167,14 +203,6 @@ class StateMachine:
         self.editor.setCursorWidth(self.editor.cursor_width_insert)
         self.editor.mode_changed.emit("INSERT")
         print("MOD: INSERT")
-
-    def _open_new_line(self):
-        """ ':n' komutuyla bir alt satıra geçer ve Insert moduna girer """
-        cursor = self.editor.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.EndOfLine)
-        cursor.insertText("\n")
-        self.editor.setTextCursor(cursor)
-        self._enter_insert_mode()
 
     def _delete_current_line(self):
         """ ':d' komutu için o anki satırı siler """
