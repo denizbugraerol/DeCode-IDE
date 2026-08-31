@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal
-from PyQt6.QtGui import QTextCursor, QTextCharFormat, QPainter, QColor
+from PyQt6.QtGui import QTextCursor, QTextCharFormat, QPainter, QColor, QFontMetricsF
 from ui import theme
 from ui.components.syntax_highlighter import CppHighlighter, PythonHighlighter
 from core.search import find_all, find_next, replace_all
@@ -63,6 +63,11 @@ class ModalEditor(QPlainTextEdit):
         #state_machine yolla
         self.state_machine = StateMachine(self)
 
+        # Ayar dosyasından gelen editör davranışı (bkz. apply_settings).
+        self.tab_width = 4
+        self.expand_tabs = False
+        self.line_numbers = True
+
         # --- Satır numarası gutter'ı (Vim/Neovim'deki 'number' gibi) ---
         self.line_number_area = LineNumberArea(self)
         self.blockCountChanged.connect(self._update_line_number_area_width)
@@ -71,10 +76,26 @@ class ModalEditor(QPlainTextEdit):
         self._update_line_number_area_width(0)
 
     def apply_settings(self, editor_settings):
-        """ Saplama: gövdesi Görev 5'te doluyor (font, tab genişliği, satır
-        numaraları). IDEWindow.apply_settings şimdiden bunu çağırabilsin diye
-        buradayız. """
-        pass
+        """ Ayar dosyasındaki [editor] bölümünü uygular. Açılışta ve ':reload'da
+        çağrılır.
+
+        Font ailesi/boyutu buradan ayarlanmaz: onları QSS veriyor (bkz.
+        ui/theme.stylesheet). Burada font yalnız sekme genişliğini ölçmek için
+        okunuyor, o yüzden önce ensurePolished() ile stilin çözülmesi
+        bekleniyor. """
+        self.tab_width = editor_settings["tab_width"]
+        self.expand_tabs = editor_settings["expand_tabs"]
+        self.line_numbers = editor_settings["line_numbers"]
+
+        # Sekme genişliği piksel cinsinden isteniyor; boşluk genişliğinden
+        # hesaplıyoruz ki 'tab_width' karakter sayısı anlamına gelsin.
+        self.ensurePolished()
+        self.setTabStopDistance(
+            QFontMetricsF(self.font()).horizontalAdvance(" ") * self.tab_width)
+
+        self.line_number_area.setVisible(self.line_numbers)
+        self._update_line_number_area_width(0)
+        self.viewport().update()
 
     def set_highlighter_for_file(self, file_path, force=False):
         """ Dosya uzantısına göre uygun highlighter'a geçer. force=True ise
@@ -152,6 +173,9 @@ class ModalEditor(QPlainTextEdit):
             self.setCursorWidth(self.cursor_width_normal)
             self.mode_changed.emit("NORMAL")
             print("NORMAL moda geçildi.")
+        elif event.key() == Qt.Key.Key_Tab and self.expand_tabs:
+            # Ayar açıkken Tab gerçek '\t' değil, tab_width kadar boşluk yazar.
+            self.insertPlainText(" " * self.tab_width)
         else:
             # Escape değilse, standart yazma işlemini yap (QPlainTextEdit'in kendi işlevi)
             super().keyPressEvent(event)
@@ -252,6 +276,8 @@ class ModalEditor(QPlainTextEdit):
     # --- Satır numarası gutter'ı: Qt'nin standart Code Editor deseni ---
 
     def line_number_area_width(self):
+        if not self.line_numbers:
+            return 0
         digits = len(str(max(1, self.blockCount())))
         return 12 + self.fontMetrics().horizontalAdvance("9") * digits
 
