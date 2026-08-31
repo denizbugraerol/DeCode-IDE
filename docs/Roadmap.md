@@ -21,7 +21,7 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
   ([Sprint 03](sprint/sprint-03.md), [05](sprint/sprint-05.md))
 - **Komutlar** — `i`, `:w`, `:d`, `:b`, `:y`, `:p`, `:cd <yol>`, `:42`, `:q`, `:wq`,
   `:qa`, `:wqa`, `:tabnew`, `:tabclose`, `:tabnext`, `:tabprev`, `:term`, `:termnew`,
-  `:ts`, `:find <desen>`, `:replace eski yeni`, `:openfile <yol>`, `:sym`
+  `:ts`, `:find <desen>`, `:replace eski yeni`, `:openfile <yol>`, `:sym`, `:reload`
 - **Arama ve gezinme** — bulanık dosya arama paleti (`:ts`), dosya içi arama
   (`:find` + çıplak `n`/`N`, tüm eşleşmeler vurgulu, Esc temizler), değiştirme
   (`:replace`), yol tamamlamalı dosya açma (`:openfile`) ve sembol paleti
@@ -38,11 +38,18 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
 - **Dosya ağacı** — CWD'ye köklenmiş sidebar, `:cd` ile kök değiştirme, Esc ile
   odağı editöre döndürme ([Sprint 01](sprint/sprint-01.md), [02](sprint/sprint-02.md))
 - **Sözdizimi renklendirme** — C/C++ ve Python (çok satırlı docstring dahil)
+- **Ayar dosyası** (`~/.config/decode/config.toml`) — renk paleti (17 token),
+  font ailesi/boyutu, sekme genişliği, `expand_tabs`, satır numarası açık/kapalı
+  ve terminal satır sayısı özelleştirilebiliyor; `:reload` uygulamayı
+  kapatmadan yeniden uyguluyor ([Sprint 09](sprint/sprint-09.md))
 - **Test altyapısı** — pytest, `QT_QPA_PLATFORM=offscreen` ile ekransız çalışan
-  72 test ([Sprint 06](sprint/sprint-06.md))
+  112 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md))
 
-Henüz yok: Vim hareket komutları, VISUAL mod, ayar dosyası, oturum geri yükleme,
-PlatformIO/seri monitör entegrasyonu, lint.
+Henüz yok: Vim tarzı düzenleme komutları (`dd`, `yy`, `x`, `o`/`O`, sayı
+önekleri), VISUAL mod, geri al/yinele + `.` ile son komutu tekrar, oturum geri
+yükleme, PlatformIO/seri monitör entegrasyonu, lint. Harf tabanlı hareket
+komutları (`h/j/k/l`, `w/b`, `gg`/`G`) bu listede değil — bkz. Faz 3, kasıtlı
+olarak uygulanmayacak.
 
 ## Faz 2 — Arama ve gezinme (tamamlandı)
 
@@ -65,13 +72,21 @@ tıklamak değil.
 Editörün "günlük sürücü" olabilmesi için eksik olan Vim refleksleri ve
 kişiselleştirme.
 
-- Hareket ve düzenleme komutları: `h/j/k/l`, `w/b`, `gg`/`G`, `dd`, `yy`, `x`,
-  `o`/`O` ve sayı önekleri (`3dd`) — bugün navigasyon Qt'nin ok tuşlarına
-  bırakılmış durumda.
+- **Navigasyon ok tuşlarında kalıyor** (bilinçli olarak Vim'den ayrılıyoruz):
+  Ok, Home/End, PageUp/PageDown; Shift+Ok seçer, Ctrl+Ok kelime atlar.
+  `h/j/k/l`, `w/b`, `gg`/`G` gibi harf tabanlı hareket komutları
+  **uygulanmayacak**.
+- Düzenleme komutları (`dd`, `yy`, `x`, `o`/`O` ve sayı önekleri) açık
+  duruyor; hareketten bağımsız olarak ele alınacak.
 - Görsel (VISUAL) mod ve seçim üzerinde işlem.
 - Geri al/yinele için Vim tarzı davranış ve `.` ile son komutu tekrar.
-- **Ayar dosyası** (`~/.config/decode/config.toml` gibi): tema, font, sekme
-  genişliği, satır numarası açık/kapalı — bugün hepsi kodda sabit.
+- **Ayar dosyası** (`~/.config/decode/config.toml`) — **tamamlandı**
+  ([Sprint 09](sprint/sprint-09.md)): `[editor]` altında `font_family`,
+  `font_size`, `tab_width`, `expand_tabs`, `line_numbers`; `[terminal]`
+  altında `rows`; `[colors]` altında 17 adlandırılmış renk tokeni
+  (`#rrggbb`, geçersiz/bilinmeyen anahtarlar uyarıyla varsayılana döner).
+  Dosya yoksa ilk açılışta şablonla oluşturuluyor; `:reload` uygulamayı
+  kapatmadan yeniden uyguluyor.
 - Oturum geri yükleme: son açık sekmeler ve çalışma dizini.
 
 ## Faz 4 — Gömülü hedef (PlatformIO)
@@ -101,13 +116,13 @@ yer tutuyor.
 | Konu | Durum | Nerede |
 |---|---|---|
 | `__pycache__` deposu kirletiyor | Çözüldü ([Sprint 06](sprint/sprint-06.md)): kural eklendi, 14 `.pyc` takipten çıkarıldı | `.gitignore` |
-| Lint altyapısı yok | Test var (72 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| Lint altyapısı yok | Test var (112 test, pytest); lint/format aracı hâlâ seçilmedi | — |
 | `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
 | Boş yer tutucular | `pio_cli.py`, `serial_reader.py` | Faz 4 |
 | Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
 | `forkpty()` çok iş parçacıklı süreçte | `:ts` taraması sürerken `:term` açmak uyarı üretiyor | `core/terminal_process.py` |
-| Tema kodda sabit | Renkler `IDEWindow._apply_theme` içinde string olarak | Faz 3 |
+| Tema kodda sabit | Çözüldü ([Sprint 09](sprint/sprint-09.md)): renkler `ui/theme.py`'deki tek palete taşındı, ayar dosyasının `[colors]` bölümünden özelleştirilebiliyor | `ui/theme.py` |
 
 ## Sürüm kilometre taşları
 
@@ -117,6 +132,6 @@ Tarih verilmiyor; sıra ve çıkış kriteri veriliyor.
 |---|---|---|
 | **v0.1** | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride |
 | **v0.2** (bugün) | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor |
-| **v0.3** | Faz 3 | Temel Vim hareketleri + ayar dosyası; oturum geri yükleniyor |
+| **v0.3** | Faz 3 | Düzenleme komutları (`dd`/`yy`/`x`/`o`/`O`) + VISUAL mod; ayar dosyası ✅ (Sprint 09), oturum geri yükleniyor |
 | **v0.4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla; seri monitör açılıyor |
 | **v1.0** | Faz 5 | Kurulabilir paket ve belgelenmiş komut/kısayol referansı |

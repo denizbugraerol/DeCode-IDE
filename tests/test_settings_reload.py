@@ -94,3 +94,47 @@ def test_reload_karsilama_sayfasinda_da_var(pencere):
     pencere.editor_tabs.close_current_tab()
     adlar = [ad for ad, _a in pencere.welcome_page.state_machine._matches_for("")]
     assert "reload" in adlar
+
+
+def test_reload_highlighter_rengini_yeniler(pencere, tmp_path, monkeypatch):
+    """ Regresyon: sözdizimi renklendiricisinin kuralları QTextCharFormat
+    içine kopyalanır ve palet değişince kendiliğinden güncellenmez;
+    'reload_settings' bunları set_highlighter_for_file(..., force=True) ile
+    elle yeniden kurar. Bu çağrı düşerse (ör. force=True unutulursa) test de
+    düşer — bkz. sprint-09 teknik notları. """
+    yol = tmp_path / "config.toml"
+    yol.write_text('[colors]\ngreen = "#00ff00"\n', encoding="utf-8")
+    monkeypatch.setattr("core.config.config_path", lambda: str(yol))
+
+    editor = pencere.editor
+    editor.file_path = "x.py"
+    editor.set_highlighter_for_file("x.py", force=True)
+
+    pencere.show()
+    try:
+        pencere.reload_settings()
+        assert editor.highlighter.string_format.foreground().color().name() == "#00ff00"
+    finally:
+        # Palet modül düzeyinde global; sıfırlanmazsa sonraki testlere sızar.
+        theme.set_palette(dict(theme.DEFAULT_PALETTE))
+
+
+def test_reload_arama_vurgu_rengini_yeniler(pencere, tmp_path, monkeypatch):
+    """ Regresyon: arama eşleşmesi vurgusu da bir QTextCharFormat'a
+    kopyalanır; 'reload_settings' _highlight_matches() ile yeniden
+    kurmazsa eski renkte takılı kalır. """
+    yol = tmp_path / "config.toml"
+    yol.write_text('[colors]\nsearch = "#ff00ff"\n', encoding="utf-8")
+    monkeypatch.setattr("core.config.config_path", lambda: str(yol))
+
+    editor = pencere.editor
+    editor.setPlainText("bir foo iki")
+    editor.search("foo")
+
+    pencere.show()
+    try:
+        pencere.reload_settings()
+        assert editor.extraSelections()[0].format.background().color().name() == "#ff00ff"
+    finally:
+        # Palet modül düzeyinde global; sıfırlanmazsa sonraki testlere sızar.
+        theme.set_palette(dict(theme.DEFAULT_PALETTE))
