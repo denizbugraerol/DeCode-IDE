@@ -16,7 +16,7 @@ class StateMachine:
     KNOWN_COMMANDS = (
         "d", "w", "b", "y", "p", "wq", "q", "qa", "wqa", "ts", "cd",
         "term", "termnew", "tabnew", "tabclose", "tabnext", "tabprev",
-        "find", "replace", "openfile",
+        "find", "replace", "openfile", "sym",
     )
     COMMAND_DESCRIPTIONS = {
         "d": "geçerli satırı sil",
@@ -32,6 +32,7 @@ class StateMachine:
         "find": "dosya içinde ara (:find <desen>)",
         "replace": "metni değiştir (:replace eski yeni)",
         "openfile": "dosya aç (:openfile <yol>)",
+        "sym": "dosyadaki tanımlara atla",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
         "termnew": "yeni terminal sekmesi",
@@ -243,6 +244,8 @@ class StateMachine:
                     self.editor.tab_prev_requested.emit()
                 case "ts":
                     self.editor.telescope_requested.emit()
+                case "sym":
+                    self.editor.symbol_search_requested.emit()
                 case "term":
                     self.editor.terminal_toggle_requested.emit()
                 case "termnew":

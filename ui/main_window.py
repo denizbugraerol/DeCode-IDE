@@ -8,6 +8,7 @@ from ui.components.bottom_panel import StatusLine, CommandLine, CommandSuggestio
 from ui.components.terminal_panel import TerminalPanel
 from ui.components.command_palette import CommandPalette
 from core.file_index import FileIndexWorker
+from core.symbols import extract_symbols
 from core.file_manager import FileManager
 
 
@@ -97,6 +98,7 @@ class IDEWindow(QMainWindow):
         self.editor_tabs.sidebar_toggle_requested.connect(self.toggle_sidebar_focus)
         self.editor_tabs.telescope_requested.connect(self.open_telescope_search)
         self.editor_tabs.open_path_requested.connect(self._open_relative_path)
+        self.editor_tabs.symbol_search_requested.connect(self.open_symbol_search)
         self.editor_tabs.change_directory_requested.connect(self._change_directory)
         self.editor_tabs.quit_requested.connect(self.close)          # ':qa'
         self.editor_tabs.last_tab_closed.connect(self.close)         # son ':q'
@@ -294,6 +296,22 @@ class IDEWindow(QMainWindow):
         self._file_index_worker.ready.connect(self._on_file_index_ready)
         self._file_index_worker.start()
 
+    def open_symbol_search(self):
+        """ ':sym' — açık dosyadaki tanımları telescope paletinde listeler;
+        seçilen tanımın satırına atlar. """
+        editor = self.editor
+        if editor is None:
+            return
+
+        symbols = extract_symbols(editor.toPlainText(), editor.file_path)
+        if not symbols:
+            print("Bu dosyada tanım bulunamadı.")
+            return
+
+        items = [(f"{kind:<9} {name}    {line}", line) for kind, name, line in symbols]
+        self.command_palette.open_with(f"Tanım ara ({self.current_file_name})", items, mode="symbol")
+        self._show_palette()
+
     def _on_file_index_ready(self, paths):
         """ Arka plan taraması bitti: palet hâlâ dosya modunda açıksa doldur. """
         if self.command_palette.isVisible() and self.command_palette.mode == "file":
@@ -323,6 +341,10 @@ class IDEWindow(QMainWindow):
 
         if mode == "file":
             self._open_path(os.path.join(os.getcwd(), payload))
+        elif mode == "symbol":
+            editor = self.editor
+            if editor is not None:
+                editor.goto_line(payload)
 
     def _change_directory(self, path):
         """ ':cd [yol]' ile tetiklenir — gerçek Vim'deki :cd gibi çalışma dizinini

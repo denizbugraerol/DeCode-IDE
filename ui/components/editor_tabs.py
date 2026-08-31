@@ -20,6 +20,7 @@ class EditorTabs(QTabWidget):
     sidebar_toggle_requested = pyqtSignal()
     telescope_requested = pyqtSignal()
     open_path_requested = pyqtSignal(str)   # ':openfile <yol>'
+    symbol_search_requested = pyqtSignal()  # ':sym'
     change_directory_requested = pyqtSignal(str)
     quit_requested = pyqtSignal()             # ':qa' — uygulamadan çık
     terminal_toggle_requested = pyqtSignal()
@@ -154,6 +155,8 @@ class EditorTabs(QTabWidget):
             lambda e=editor: self._relay(e, self.telescope_requested))
         editor.open_path_requested.connect(
             lambda path, e=editor: self._relay(e, self.open_path_requested, path))
+        editor.symbol_search_requested.connect(
+            lambda e=editor: self._relay(e, self.symbol_search_requested))
         editor.change_directory_requested.connect(
             lambda path, e=editor: self._relay(e, self.change_directory_requested, path))
         editor.quit_requested.connect(
