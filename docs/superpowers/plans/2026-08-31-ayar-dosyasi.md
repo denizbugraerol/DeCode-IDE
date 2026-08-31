@@ -1396,6 +1396,10 @@ def test_terminal_satir_sayisi_ayardan_gelir(pencere):
 
     assert goruntu.rows == 20
     assert goruntu.height() > onceki_yukseklik
+    # PTY de yeniden boyutlanmalı: widget yüksekliği ile shell'in satır sayısı
+    # ayrışırsa çıktı yanlış sütunda/satırda sarar. Yalnız yüksekliğe bakan bir
+    # test, _recompute_cols'daki dönüşüm atlansa da geçerdi.
+    assert goruntu._process.rows == 20
 ```
 
 - [ ] **Adım 2: Çalıştır — düşmeli**
@@ -1458,7 +1462,15 @@ olur:
         view = TerminalView(rows=self._rows)
 ```
 
-- [ ] **Adım 5: Çalıştır ve commit**
+- [ ] **Adım 5: Artık yanlış olan docstring'leri düzelt**
+
+Satır sayısı sabit olmaktan çıktığı için `ui/components/terminal_panel.py`'deki
+iki yer güncellenmeli: `TerminalView` sınıf docstring'indeki "Yüksekliği 9
+satıra sabitlenir" ve `_recompute_height`'taki "Panel yüksekliği = sekme
+çubuğu + 9 satırlık terminal alanı. Terminalin kendisi her zaman tam 9 satır
+kalır." Her ikisi de artık "ayar dosyasındaki `[terminal] rows` kadar" demeli.
+
+- [ ] **Adım 6: Çalıştır ve commit**
 
 ```bash
 .venv/bin/python -m pytest -q
