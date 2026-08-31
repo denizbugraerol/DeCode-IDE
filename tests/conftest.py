@@ -23,10 +23,16 @@ def pencere(qapp):
 
     Terminal PTY'si kapatılıp widget ağacı olay döngüsü içinde siliniyor:
     aynı oturumda birden fazla pencere çöp toplayıcıya kalırsa Qt yıkım
-    sırasında (QObjectPrivate::deleteChildren) çakılıyor. """
+    sırasında (QObjectPrivate::deleteChildren) çakılıyor.
+
+    settings açıkça config.default_settings() ile veriliyor: aksi halde
+    IDEWindow ayar dosyası yokken bile config.load() çağırır ve testler
+    geliştiricinin gerçek ~/.config/decode/config.toml dosyasına bağımlı
+    kalır. """
+    from core import config
     from ui.main_window import IDEWindow
 
-    window = IDEWindow()
+    window = IDEWindow(settings=config.default_settings())
     yield window
 
     window.terminal_panel.shutdown()

@@ -70,6 +70,12 @@ class ModalEditor(QPlainTextEdit):
         self.cursorPositionChanged.connect(self.line_number_area.update)
         self._update_line_number_area_width(0)
 
+    def apply_settings(self, editor_settings):
+        """ Saplama: gövdesi Görev 5'te doluyor (font, tab genişliği, satır
+        numaraları). IDEWindow.apply_settings şimdiden bunu çağırabilsin diye
+        buradayız. """
+        pass
+
     def set_highlighter_for_file(self, file_path, force=False):
         """ Dosya uzantısına göre uygun highlighter'a geçer. force=True ise
         aynı sınıf olsa bile yeniden kurar (':reload' tema değiştirdiğinde). """

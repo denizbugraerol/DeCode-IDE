@@ -311,6 +311,11 @@ class TerminalPanel(QWidget):
             self.stack.widget(i).apply_font(self._font)
         self._recompute_height()
 
+    def apply_settings(self, terminal_settings):
+        """ Saplama: gövdesi Görev 6'da doluyor (satır sayısı). IDEWindow.apply_settings
+        şimdiden bunu çağırabilsin diye buradayız. """
+        pass
+
     def _recompute_height(self):
         """ Panel yüksekliği = sekme çubuğu + 9 satırlık terminal alanı.
         Terminalin kendisi her zaman tam 9 satır kalır. """

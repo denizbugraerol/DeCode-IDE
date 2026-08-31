@@ -9,6 +9,7 @@ from ui.components.terminal_panel import TerminalPanel
 from ui.components.command_palette import CommandPalette
 from ui.components.welcome_page import WelcomePage
 from ui import theme
+from core import config
 from core.file_index import FileIndexWorker
 from core.symbols import extract_symbols
 from core.file_manager import FileManager
@@ -20,9 +21,18 @@ class IDEWindow(QMainWindow):
     SUGGESTIONS_GAP = 6
     SUGGESTIONS_BOTTOM_MARGIN = 12
 
-    def __init__(self):
+    def __init__(self, settings=None):
         super().__init__()
-        
+
+        # settings=None ise dosyadan okunur. Testler ve gömülü kullanım açık
+        # sözlük verir; bir IDEWindow oluşturmak kullanıcının gerçek ayar
+        # dosyasına bağımlı olmasın.
+        if settings is None:
+            settings, warnings = config.load()
+            for warning in warnings:
+                print(warning)
+        self.settings = settings
+
         self.setWindowTitle("DeCode IDE - v0.2")
         self.setGeometry(100, 100, 1200, 800)
 
@@ -37,7 +47,7 @@ class IDEWindow(QMainWindow):
         self.main_layout.addWidget(self.splitter)
         
         self._setup_ui()
-        self._apply_theme()
+        self.apply_settings()
 
     def _setup_ui(self):
         #Sol panel - Dosya Sistemi
@@ -179,6 +189,9 @@ class IDEWindow(QMainWindow):
             self.status_line.set_position(None, None)
         else:
             self._update_cursor_position()
+            editor = self.editor
+            editor.apply_settings(self.settings["editor"])
+            self.terminal_panel.sync_font_with_editor(editor)
 
         self._on_mode_changed(host.current_mode)
         host.setFocus()
@@ -415,10 +428,27 @@ class IDEWindow(QMainWindow):
         self.sidebar.set_root_path(target)
         print(f"Çalışma dizini değiştirildi: {target}")
 
+    def apply_settings(self):
+        """ self.settings'i her yere dağıtır: palet, QSS, editörler, terminal.
+        Hem açılışta hem ':reload'da aynı yoldan geçilir. """
+        palette, warnings = theme.build_palette(self.settings["colors"])
+        for warning in warnings:
+            print(warning)
+        theme.set_palette(palette)
+
+        self._apply_theme()
+
+        for editor in self.editor_tabs.editors():
+            editor.apply_settings(self.settings["editor"])
+
+        self.terminal_panel.apply_settings(self.settings["terminal"])
+
     def _apply_theme(self):
         """ Geçerli paleti ve fontu pencereye uygular. Palet ui/theme'de;
         burada yalnız üretilen QSS takılıyor. """
-        self.setStyleSheet(theme.stylesheet(theme.palette(), "Fira Code", 15))
+        editor_settings = self.settings["editor"]
+        self.setStyleSheet(theme.stylesheet(
+            theme.palette(), editor_settings["font_family"], editor_settings["font_size"]))
 
         # Terminal '9 satır' yüksekliğini editörün QSS'ten gelen gerçek satır
         # yüksekliğiyle ölçüyor; sekme yoksa ölçecek editör de yok.
