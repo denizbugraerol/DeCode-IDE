@@ -16,7 +16,7 @@ class StateMachine:
     KNOWN_COMMANDS = (
         "d", "w", "b", "y", "p", "wq", "q", "qa", "wqa", "ts", "cd",
         "term", "termnew", "tabnew", "tabclose", "tabnext", "tabprev",
-        "find", "replace", "openfile", "sym",
+        "find", "replace", "openfile", "sym", "reload",
     )
     COMMAND_DESCRIPTIONS = {
         "d": "geçerli satırı sil",
@@ -33,6 +33,7 @@ class StateMachine:
         "replace": "metni değiştir (:replace eski yeni)",
         "openfile": "dosya aç (:openfile <yol>)",
         "sym": "dosyadaki tanımlara atla",
+        "reload": "ayar dosyasını yeniden oku",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
         "termnew": "yeni terminal sekmesi",
@@ -257,6 +258,8 @@ class StateMachine:
                     self.editor.terminal_toggle_requested.emit()
                 case "termnew":
                     self.editor.terminal_new_requested.emit()
+                case "reload":
+                    self.editor.settings_reload_requested.emit()
                 # bilinmeyen komut: sessizce yok sayılır
 
         self._exit_command_line()

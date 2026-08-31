@@ -29,6 +29,7 @@ class EditorTabs(QTabWidget):
     mode_changed = pyqtSignal(str)
     command_line_changed = pyqtSignal(str)
     command_suggestions_changed = pyqtSignal(list, int)
+    settings_reload_requested = pyqtSignal()  # ':reload'
     cursor_position_changed = pyqtSignal()
 
     # --- Sekme durumu ---
@@ -175,6 +176,8 @@ class EditorTabs(QTabWidget):
             lambda text, e=editor: self._relay(e, self.command_line_changed, text))
         editor.command_suggestions_changed.connect(
             lambda matches, i, e=editor: self._relay(e, self.command_suggestions_changed, matches, i))
+        editor.settings_reload_requested.connect(
+            lambda e=editor: self._relay(e, self.settings_reload_requested))
         editor.cursorPositionChanged.connect(
             lambda e=editor: self._relay(e, self.cursor_position_changed))
 

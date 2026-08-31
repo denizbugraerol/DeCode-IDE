@@ -10,8 +10,9 @@ from ui import theme
 
 class TerminalView(QWidget):
     """ Tek bir shell oturumunu (bir PTY + bir pyte ekranı) çizen ve klavye
-    girdisini ona ileten widget. Yüksekliği 9 satıra sabitlenir. Panel
-    içindeki her sekme bir TerminalView örneğidir. """
+    girdisini ona ileten widget. Yüksekliği ayar dosyasındaki [terminal] rows
+    değerine göre belirlenir (varsayılan 9). Panel içindeki her sekme bir
+    TerminalView örneğidir. """
 
     return_focus_requested = pyqtSignal()   # Alt+Shift+T -> odak editöre
     new_tab_requested = pyqtSignal()        # Alt+Shift+N
@@ -332,8 +333,9 @@ class TerminalPanel(QWidget):
         self._recompute_height()
 
     def _recompute_height(self):
-        """ Panel yüksekliği = sekme çubuğu + 9 satırlık terminal alanı.
-        Terminalin kendisi her zaman tam 9 satır kalır. """
+        """ Panel yüksekliği = sekme çubuğu + terminal alanı. Terminalin
+        kendi satır sayısı ayar dosyasındaki [terminal] rows değerini takip
+        eder (varsayılan 9). """
         view = self.stack.currentWidget()
         if view is None or self._font is None:
             return

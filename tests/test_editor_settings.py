@@ -69,3 +69,8 @@ def test_terminal_satir_sayisi_ayardan_gelir(pencere):
 
     assert goruntu.rows == 20
     assert goruntu.height() > onceki_yukseklik
+
+    # PTY de yeniden boyutlanmalı: widget yüksekliği ile shell'in satır sayısı
+    # ayrışırsa çıktı yanlış sarar. Yalnız yüksekliğe bakan bir test,
+    # _recompute_cols'daki dönüşüm atlansa da geçerdi.
+    assert goruntu._process.rows == 20

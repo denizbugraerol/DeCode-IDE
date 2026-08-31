@@ -159,6 +159,7 @@ class IDEWindow(QMainWindow):
             "mode_changed": self._on_mode_changed,
             "command_line_changed": self.command_line.set_text,
             "command_suggestions_changed": self._on_suggestions_changed,
+            "settings_reload_requested": self.reload_settings,
         }
         for name, handler in connections.items():
             getattr(host, name).connect(handler)
@@ -454,6 +455,23 @@ class IDEWindow(QMainWindow):
         # yüksekliğiyle ölçüyor; sekme yoksa ölçecek editör de yok.
         if self.editor is not None:
             self.terminal_panel.sync_font_with_editor(self.editor)
+
+    def reload_settings(self):
+        """ ':reload' — ayar dosyasını yeniden okuyup uygular. Açık sekmeler,
+        imleçler ve terminal oturumları korunur. """
+        settings, warnings = config.load()
+        for warning in warnings:
+            print(warning)
+        self.settings = settings
+        self.apply_settings()
+
+        # Renklendirici kuralları QTextCharFormat içine kopyalandığı için
+        # paletle kendiliğinden güncellenmiyor; yeniden kuruluyorlar.
+        for editor in self.editor_tabs.editors():
+            editor.set_highlighter_for_file(editor.file_path, force=True)
+            editor._highlight_matches()
+
+        print("Ayarlar yeniden yüklendi.")
 
     def closeEvent(self, event):
         """ Uygulama kapanırken terminaldeki shell sürecini (ve PTY'yi)
