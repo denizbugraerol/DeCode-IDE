@@ -11,9 +11,11 @@ class CppHighlighter(QSyntaxHighlighter):
         self.rebuild()
 
     def rebuild(self):
-        """ Kuralları geçerli paletle yeniden kurar. ':reload' bunu çağırır;
-        renkler QTextCharFormat içine kopyalandığı için palet değişince
-        kendiliğinden güncellenmiyorlar. """
+        """ Kuralları geçerli paletle YERİNDE yeniden kurar (highlighter
+        nesnesi atılmaz). ModalEditor.refresh_theme bunu çağırır -- açılışta
+        ve ':reload'da, ikisi de artık IDEWindow.apply_settings üzerinden
+        aynı yoldan geçiyor; renkler QTextCharFormat içine kopyalandığı için
+        palet değişince kendiliğinden güncellenmiyorlar. """
         self.highlighting_rules = []
 
         # --- 1. Yorum Satırları (Soluk ve İtalik) ---
@@ -82,9 +84,11 @@ class PythonHighlighter(QSyntaxHighlighter):
         self.rebuild()
 
     def rebuild(self):
-        """ Kuralları geçerli paletle yeniden kurar. ':reload' bunu çağırır;
-        renkler QTextCharFormat içine kopyalandığı için palet değişince
-        kendiliğinden güncellenmiyorlar. """
+        """ Kuralları geçerli paletle YERİNDE yeniden kurar (highlighter
+        nesnesi atılmaz). ModalEditor.refresh_theme bunu çağırır -- açılışta
+        ve ':reload'da, ikisi de artık IDEWindow.apply_settings üzerinden
+        aynı yoldan geçiyor; renkler QTextCharFormat içine kopyalandığı için
+        palet değişince kendiliğinden güncellenmiyorlar. """
         self.highlighting_rules = []
 
         # --- 1. Yorum Satırları (Soluk ve İtalik) ---

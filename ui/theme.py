@@ -1,11 +1,19 @@
-""" Tema: adlandırılmış renk paleti ve ondan üretilen Qt stylesheet'i.
+""" Tema: adlandırılmış renk paleti + font durumu ve bunlardan üretilen Qt
+stylesheet'i.
 
 Renkler tek yerde durur. Bileşenler rengi BOYAMA ANINDA theme.color(...) ile
 okur; böylece ':reload' paleti değiştirdiğinde yeniden çizilen her şey yeni
-renklerle gelir ve paleti beş ayrı yapıcıya elden geçirmek gerekmez.
+renklerle gelir ve paleti beş ayrı yapıcıya elden geçirmek gerekmez. Font
+ailesi/boyutu da aynı ilkeyle module-level tutulur (font_family, font_size) —
+QSS'in kendisi kullanmaz (o parametre alır, bkz. stylesheet()) ama QSS'in
+DIŞINDA kalıp kendi stilini elle kuran bileşenler (FloatingList, StatusLine)
+bunları okur.
 
-Geçerli palet süreç genelinde tektir — uygulamanın teması gerçekten global bir
-şey. set_palette onu değiştiren tek kapıdır. """
+Geçerli palet ve font süreç genelinde tektir — uygulamanın teması gerçekten
+global bir şey. set_palette / set_font onları değiştiren TEK kapıdır:
+set_palette verilen sözlüğü DEFAULT_PALETTE'in üstüne bindirir (kısmi bir
+sözlük verilse bile _current eksiksiz kalır, aksi halde color() sonradan
+boyama sırasında KeyError fırlatabilirdi). """
 from string import Template
 
 # Tokyo Night. Bugün altı dosyaya dağılmış 17 rengin tamamı.
@@ -43,6 +51,14 @@ FONT_SIZE_OFFSETS = {
 
 _current = dict(DEFAULT_PALETTE)
 
+# Font durumu palet gibi modül düzeyinde tek. Varsayılanlar
+# core/config.DEFAULTS["editor"] ile birebir aynı olmalı: set_font hiç
+# çağrılmadan (ör. IDEWindow dışında tek başına kurulan bir FloatingList/
+# StatusLine testinde) üretilen stil de bugünkü sabit "13px/11px Fira Code"
+# ile eşleşsin.
+_current_font_family = "Fira Code"
+_current_font_size = 15
+
 
 def color(token):
     """ Geçerli paletten bir renk. Bileşenler bunu boyama anında çağırır. """
@@ -54,8 +70,38 @@ def palette():
 
 
 def set_palette(new_palette):
+    """ Geçerli paleti değiştirir — set_font ile birlikte TEK kapı budur.
+    new_palette DEFAULT_PALETTE'in üstüne bindirilir: kısmi bir sözlük
+    (ör. yalnızca {'bg': ...}) verilse bile eksik tokenlar varsayılandan
+    tamamlanır, aksi halde color() sonradan bir paintEvent içinden KeyError
+    fırlatabilirdi. build_palette() zaten hep eksiksiz bir sözlük döndürür;
+    bu tamamlama onun dışından çağıran biri için bir güvenlik ağıdır. """
     _current.clear()
+    _current.update(DEFAULT_PALETTE)
     _current.update(new_palette)
+
+
+def set_font(family, size):
+    """ Geçerli font ailesini ve editör boyutunu değiştirir — set_palette'in
+    font karşılığı; aynı yerden (IDEWindow.apply_settings) çağrılır. Rol
+    bazlı boyutlar font_size(role) ile FONT_SIZE_OFFSETS'e göre türetilir. """
+    global _current_font_family, _current_font_size
+    _current_font_family = family
+    _current_font_size = size
+
+
+def font_family():
+    """ Geçerli font ailesi. QSS'in dışında kalıp kendi stilini elle kuran
+    bileşenler (FloatingList, StatusLine) bunu boyama/stil kurma anında
+    çağırır — color() ile aynı ilke. """
+    return _current_font_family
+
+
+def font_size(role="editor"):
+    """ Bir arayüz rolünün (FONT_SIZE_OFFSETS'teki adlardan biri) geçerli
+    font boyutu: editör boyutu + o rolün sapması. Tanınmayan rol için sapma
+    0 sayılır (editör boyutuyla aynı boyut döner). """
+    return _current_font_size + FONT_SIZE_OFFSETS.get(role, 0)
 
 
 def build_palette(overrides):

@@ -430,19 +430,42 @@ class IDEWindow(QMainWindow):
         print(f"Çalışma dizini değiştirildi: {target}")
 
     def apply_settings(self):
-        """ self.settings'i her yere dağıtır: palet, QSS, editörler, terminal.
-        Hem açılışta hem ':reload'da aynı yoldan geçilir. """
+        """ self.settings'i her yere dağıtır: palet, font durumu, QSS,
+        editörler, terminal. Açılış (__init__ sonunda) ve ':reload'
+        (reload_settings) TEK bu metottan geçer — gerçekten aynı yoldan.
+
+        Bu yüzden buradaki onarım adımları (highlighter/arama-vurgusu,
+        statusline rozeti) ikisi için de geçerli olur. _setup_ui paletin/
+        fontun HENÜZ varsayılan olduğu anda kurulan widget'lar üretir (ilk
+        sekmenin ModalEditor'ü, statusline rozetinin ilk setStyleSheet'i);
+        bu ikisi rengi kendi içine KOPYALAR, theme.color(...)/theme.font_*()
+        ile boyama anında OKUMAZ. Burada onları tazelemezsek, açılışta özel
+        bir palet/font verilse bile bu iki widget uygulama ömrü boyunca (ya
+        da ilk mod değişikliği/uygun bir dosya açılışına kadar) varsayılanı
+        taşımaya devam eder (kod incelemesi Bulgu 1) — bkz. sprint-09 teknik
+        notları: paletten KOPYALANAN her renk apply_settings'te yeniden
+        türetilmeli, yalnızca reload_settings'te değil. """
         palette, warnings = theme.build_palette(self.settings["colors"])
         for warning in warnings:
             print(warning)
         theme.set_palette(palette)
+        theme.set_font(self.settings["editor"]["font_family"], self.settings["editor"]["font_size"])
 
         self._apply_theme()
 
         for editor in self.editor_tabs.editors():
             editor.apply_settings(self.settings["editor"])
+            # Highlighter kuralları ve arama vurgusu birer QTextCharFormat'a
+            # rengi KOPYALAR; palet değişince kendiliğinden güncellenmezler.
+            editor.refresh_theme()
 
         self.terminal_panel.apply_settings(self.settings["terminal"])
+
+        # Statusline rozeti de rengi/fontu setStyleSheet içine KOPYALIYOR
+        # (bkz. StatusLine.set_mode); mod değişmemiş olsa bile burada yeniden
+        # çağırmazsak _setup_ui'nin ilk çağrısındaki varsayılan renkte/boyutta
+        # takılı kalır.
+        self.status_line.set_mode(self.modal_host.current_mode)
 
     def _apply_theme(self):
         """ Geçerli paleti ve fontu pencereye uygular. Palet ui/theme'de;
@@ -458,18 +481,14 @@ class IDEWindow(QMainWindow):
 
     def reload_settings(self):
         """ ':reload' — ayar dosyasını yeniden okuyup uygular. Açık sekmeler,
-        imleçler ve terminal oturumları korunur. """
+        imleçler ve terminal oturumları korunur. Onarım adımları (highlighter,
+        arama vurgusu, statusline rozeti) apply_settings içinde — açılışla
+        birebir aynı yoldan geçiyoruz, burada ayrıca tekrarlanmaz. """
         settings, warnings = config.load()
         for warning in warnings:
             print(warning)
         self.settings = settings
         self.apply_settings()
-
-        # Renklendirici kuralları QTextCharFormat içine kopyalandığı için
-        # paletle kendiliğinden güncellenmiyor; yeniden kuruluyorlar.
-        for editor in self.editor_tabs.editors():
-            editor.set_highlighter_for_file(editor.file_path, force=True)
-            editor._highlight_matches()
 
         print("Ayarlar yeniden yüklendi.")
 

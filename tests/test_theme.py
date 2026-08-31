@@ -36,6 +36,22 @@ def test_set_palette_ve_color():
         theme.set_palette(dict(theme.DEFAULT_PALETTE))
 
 
+def test_set_palette_kismi_sozlukle_bile_tum_tokenlari_tasir():
+    """ Kod incelemesi Bulgu 5: set_palette _current'ı baştan sona
+    değiştiriyordu (clear + update); {'bg': '#000'} gibi kısmi bir sözlük
+    verilse (build_palette'in DIŞINDAN, doğrudan çağrılsa) eksik tokenlar
+    silinir ve color('fg') gibi bir çağrı bir paintEvent içinden KeyError
+    fırlatabilirdi. Modülün kendi docstring'i set_palette'i 'tek kapı' diye
+    tanımlıyor -- kapı bunu denetlemeli. """
+    try:
+        theme.set_palette({"bg": "#000000"})
+        assert theme.color("bg") == "#000000"
+        assert theme.color("fg") == theme.DEFAULT_PALETTE["fg"]       # tamamlandı
+        assert theme.color("purple") == theme.DEFAULT_PALETTE["purple"]
+    finally:
+        theme.set_palette(dict(theme.DEFAULT_PALETTE))
+
+
 def test_stylesheet_paletteki_rengi_kullanir():
     palet, _u = theme.build_palette({"bg": "#11111b"})
     qss = theme.stylesheet(palet, "Fira Code", 15)
@@ -113,3 +129,37 @@ def test_stylesheet_her_secici_kendi_sapmasini_tasir():
     ) == 17                                                                  # tab
     assert _font_size_in(qss, re.escape("QWidget#statusLine QLabel")) == 16 # status
     assert _font_size_in(qss, re.escape("QLabel#welcomeTitle")) == 33       # welcome_title
+
+
+# --- Kod incelemesi bulgusu (Bulgu 4): font_family/font_size QSS'in dışında
+# kalan bileşenlere (FloatingList satırları, StatusLine rozeti) ulaşmıyordu.
+# set_font/font_family/font_size bunun için eklendi; aşağıdaki testler hem
+# varsayılan durumu (hiç set_font çağrılmamışsa bile) hem set_font'un rol
+# bazlı sapmaları doğru türettiğini kilitler.
+
+def test_font_family_varsayilani_fira_code():
+    """ set_font hiç çağrılmadan (ör. tek başına kurulan bir FloatingList
+    testinde) bile bugünkü sabit 'Fira Code' üretilmeli. """
+    assert theme.font_family() == "Fira Code"
+
+
+def test_font_size_varsayilan_rol_sapmalarini_uygular():
+    """ Varsayılan font_size=15 ile FloatingList satırları (row, -2) 13px,
+    statusline rozeti (status, -4) 11px üretmeli -- bugünkü sabit
+    değerlerin birebir aynısı (Bulgu 4'ün 'görünüm değişmemeli' koşulu). """
+    assert theme.font_size("row") == 13
+    assert theme.font_size("status") == 11
+    assert theme.font_size("editor") == 15
+    assert theme.font_size() == 15                # varsayılan rol: editor
+    assert theme.font_size("tanimsiz-rol") == 15   # bilinmeyen rol: sapma 0
+
+
+def test_set_font_font_family_ve_font_size_ile_okunur():
+    try:
+        theme.set_font("JetBrains Mono", 20)
+        assert theme.font_family() == "JetBrains Mono"
+        assert theme.font_size("editor") == 20
+        assert theme.font_size("row") == 18        # 20 - 2
+        assert theme.font_size("status") == 16      # 20 - 4
+    finally:
+        theme.set_font("Fira Code", 15)

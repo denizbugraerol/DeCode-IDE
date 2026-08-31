@@ -145,12 +145,22 @@ class TerminalView(QWidget):
         char_width = metrics.horizontalAdvance("0")
         ascent = metrics.ascent()
 
+        # Paletteki 17 tokenin QColor'ını bu KAREDE bir kez kuruyoruz.
+        # Eskiden her hücre kendi _resolve_one çağrısında theme.color(...) +
+        # QColor(hex) ayrıştırması yapıyordu (80x9'luk varsayılan ekranda bile
+        # hücre başına iki, üstelik _resolve_colors karşılaştırma için ÜÇÜNCÜ
+        # bir QColor daha kuruyordu) -- kod incelemesi Bulgu 3, ~7.6x'lik
+        # yavaşlama. Kareler arası ÖNBELLEKLEMİYORUZ: bu sözlük her
+        # paintEvent'te yeniden kuruluyor ki bir palet değişikliği (':reload')
+        # bir SONRAKİ karede hemen görünsün.
+        palette_colors = {token: QColor(hex_value) for token, hex_value in theme.palette().items()}
+
         for y in range(screen.lines):
             row = screen.buffer[y]
             base_y = self.PADDING + y * line_height
             for x in range(screen.columns):
                 cell = row[x]
-                fg, bg = self._resolve_colors(cell)
+                fg, bg = self._resolve_colors(cell, palette_colors)
                 cx = self.PADDING + x * char_width
                 if bg is not None:
                     painter.fillRect(cx, base_y, char_width, line_height, bg)
@@ -162,30 +172,34 @@ class TerminalView(QWidget):
         if not cursor.hidden and self.hasFocus():
             cx = self.PADDING + cursor.x * char_width
             cy = self.PADDING + cursor.y * line_height
-            painter.fillRect(cx, cy, char_width, line_height, QColor(theme.color("fg")))
+            painter.fillRect(cx, cy, char_width, line_height, palette_colors["fg"])
 
-    def _ansi_color(self, name, default_token):
+    def _ansi_color(self, name, default_token, palette_colors):
         """ pyte'ın verdiği renk adını (ya da 'default'ı) geçerli paletteki
-        tokene çevirir; boyama anında okunur ki ':reload' terminali de
-        güncellesin. """
+        tokene çevirir. palette_colors bu KAREnin başında paintEvent
+        tarafından kurulan QColor önbelleği — böylece ':reload' bir sonraki
+        paintEvent'te yine güncel çıkar, ama hücre başına yeniden
+        theme.color(...) + QColor(hex) ayrıştırması gerekmez. """
         token = self._ANSI_TOKENS.get(name)
-        return QColor(theme.color(token if token else default_token))
+        return palette_colors[token if token else default_token]
 
-    def _resolve_colors(self, cell):
-        fg = self._resolve_one(cell.fg, "fg")
-        bg = self._resolve_one(cell.bg, "bg_dark")
+    def _resolve_colors(self, cell, palette_colors):
+        fg = self._resolve_one(cell.fg, "fg", palette_colors)
+        bg = self._resolve_one(cell.bg, "bg_dark", palette_colors)
         if cell.reverse:
             fg, bg = bg, fg
-        return fg, (None if bg == QColor(theme.color("bg_dark")) else bg)
+        return fg, (None if bg == palette_colors["bg_dark"] else bg)
 
-    def _resolve_one(self, value, default_token):
+    def _resolve_one(self, value, default_token, palette_colors):
         # pyte, 256-renk/truecolor SGR kodlarını (ör. "\x1b[38;2;r;g;bm")
         # 6 haneli hex string olarak verir; bu, hiçbir isimli ANSI rengiyle
         # (en kısası 3 harf, ama hiçbiri 6 harf değil) çakışmaz, palet
-        # tokenlarının dışında kalır ve olduğu gibi çizilir.
+        # tokenlarının dışında kalır ve olduğu gibi çizilir. Bunlar palet
+        # önbelleğinde YOK (keyfi/sonsuz değer uzayı); yalnız bunlar için
+        # hücre başına bir QColor kurulmaya devam eder.
         if len(value) == 6:
             return QColor(f"#{value}")
-        return self._ansi_color(value, default_token)
+        return self._ansi_color(value, default_token, palette_colors)
 
 
 class TerminalPanel(QWidget):

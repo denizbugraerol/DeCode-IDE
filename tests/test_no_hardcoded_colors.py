@@ -12,7 +12,10 @@ MUAF = {"ui/theme.py", "core/config.py"}
 
 def test_hex_renkler_yalniz_temada():
     suclular = {}
-    for yol in list(KOK.glob("ui/**/*.py")) + list(KOK.glob("core/*.py")):
+    # İkisi de recursive taranıyor: core/*.py düz taraması bir alt paket
+    # (ör. core/embedded/) eklense hex sızıntısını görmezden gelirdi (kod
+    # incelemesi Bulgu 11).
+    for yol in list(KOK.glob("ui/**/*.py")) + list(KOK.glob("core/**/*.py")):
         goreli = yol.relative_to(KOK).as_posix()
         if goreli in MUAF:
             continue
@@ -24,4 +27,4 @@ def test_hex_renkler_yalniz_temada():
         if satirlar:
             suclular[goreli] = satirlar
 
-    assert not suclular, f"ui/theme.py dışında hex renk kaldı: {suclular}"
+    assert not suclular, f"{sorted(MUAF)} dışında hex renk kaldı: {suclular}"

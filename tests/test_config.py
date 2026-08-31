@@ -9,6 +9,23 @@ def test_dosya_yoksa_varsayilanlar_ve_uyari_yok(tmp_path):
     assert uyarilar == []
 
 
+def test_gecersiz_utf8_varsayilana_duser_ve_uyarir(tmp_path):
+    """ Kod incelemesi bulgusu (Bulgu 2): dosya var ama UTF-8 değilse
+    file.read() UnicodeDecodeError fırlatır -- bu bir ValueError'dur,
+    load()'un yakaladığı (FileNotFoundError, OSError) çiftine girmez. main.py
+    load()'u QApplication kurulmadan ÖNCE çağırdığı için bu, kullanıcıya
+    pencere yerine çıplak bir traceback gösterirdi. Bozuk ayar dosyası
+    uygulamayı asla durdurmamalı: varsayılana düşüp bir uyarı üretmeli. """
+    yol = tmp_path / "config.toml"
+    yol.write_bytes(b"[editor]\nfont_family = \"Fira\xff Code\"\n")
+
+    ayarlar, uyarilar = config.load(str(yol))
+
+    assert ayarlar == config.DEFAULTS
+    assert len(uyarilar) == 1
+    assert "açılamadı" in uyarilar[0]
+
+
 def test_default_settings_derin_kopya_verir():
     birinci = config.default_settings()
     birinci["editor"]["font_size"] = 99

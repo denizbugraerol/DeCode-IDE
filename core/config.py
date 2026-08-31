@@ -94,7 +94,13 @@ def load(path=None):
             text = file.read()
     except FileNotFoundError:
         return default_settings(), []
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:
+        # UnicodeDecodeError bir ValueError'dur, OSError DEĞİL: dosya UTF-8
+        # olmayan baytlar içeriyorsa file.read() bunu fırlatır ve sadece
+        # OSError yakalamak onu kaçırırdı. main.py load()'u QApplication
+        # kurulmadan ÖNCE çağırıyor; bu yüzden burada yakalanmazsa kullanıcı
+        # pencere yerine çıplak bir traceback görür (bkz. sprint-09 kabul
+        # edilmiş sınırlar/kod incelemesi notu).
         return default_settings(), [f"Ayar dosyası açılamadı: {error}"]
     return parse(text)
 

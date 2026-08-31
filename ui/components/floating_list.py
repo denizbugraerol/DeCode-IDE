@@ -19,8 +19,16 @@ class FloatingList(QWidget):
     PADDING = 4            # kutunun kenarı ile satırlar arasındaki boşluk
 
     def _row_style(self, selected):
-        """ Satır stili; renkler geçerli paletten. """
-        common = "padding: 4px 12px; font-family: 'Fira Code', 'Consolas', monospace; font-size: 13px;"
+        """ Satır stili; renkler geçerli paletten, font ailesi/boyutu geçerli
+        font durumundan (bkz. ui/theme.set_font). Bu satırlar QSS'in dışında
+        kalır (kendi stilini burada elle kurar) — font_family ayarı QSS
+        üzerinden gelen her şeyi değiştirse bile buradan okunmazsa bu
+        satırlar eskisi gibi 'Fira Code'da takılı kalırdı (kod incelemesi
+        Bulgu 4). 'row' rolü FONT_SIZE_OFFSETS'te editöre göre -2: varsayılan
+        font_size=15 ile bugünkü sabit 13px'i birebir üretir. """
+        common = (f"padding: 4px 12px; "
+                  f"font-family: '{theme.font_family()}', 'Consolas', monospace; "
+                  f"font-size: {theme.font_size('row')}px;")
         if selected:
             return (f"background-color: {theme.color('selection')}; "
                     f"color: {theme.color('fg_bright')}; border-radius: 4px; {common}")

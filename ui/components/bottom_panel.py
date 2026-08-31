@@ -43,11 +43,20 @@ class StatusLine(QWidget):
         self.set_position(1, 1)
 
     def set_mode(self, mode):
+        """ Rozetin metnini ve rengini yeniden kurar. Renk VE font, rengi/
+        boyutu setStyleSheet içine KOPYALAYAN bir çağrı olduğu için palet ya
+        da font_size değiştiğinde kendiliğinden güncellenmez — IDEWindow.
+        apply_settings bu yüzden mod değişmese bile bunu açılışta ve
+        ':reload'da yeniden çağırır (bkz. kod incelemesi Bulgu 1 ve 4).
+        'status' rolü FONT_SIZE_OFFSETS'te editöre göre -4: varsayılan
+        font_size=15 ile bugünkü sabit 11px'i birebir üretir. """
         self.mode_label.setText(f" {mode} ")
         color = theme.color(self.MODE_TOKENS.get(mode, "blue"))
         self.mode_label.setStyleSheet(
             f"background-color: {color}; color: {theme.color('bg')}; "
-            f"font-weight: bold; padding: 0 6px; font-size: 11px;"
+            f"font-weight: bold; padding: 0 6px; "
+            f"font-family: '{theme.font_family()}', 'Consolas', monospace; "
+            f"font-size: {theme.font_size('status')}px;"
         )
 
     def set_file(self, name):

@@ -98,14 +98,32 @@ class ModalEditor(QPlainTextEdit):
         self._update_line_number_area_width(0)
         self.viewport().update()
 
-    def set_highlighter_for_file(self, file_path, force=False):
-        """ Dosya uzantısına göre uygun highlighter'a geçer. force=True ise
-        aynı sınıf olsa bile yeniden kurar (':reload' tema değiştirdiğinde). """
+    def set_highlighter_for_file(self, file_path):
+        """ Dosya uzantısına göre uygun highlighter SINIFINA geçer; hâlihazırda
+        doğru sınıftaysa dokunmaz. Bu metodun işi yalnızca budur — bir
+        highlighter'ı geçerli paletle yeniden renklendirmek (ör. ':reload'da)
+        onun işi DEĞİL, bkz. refresh_theme(). (Kod incelemesi Bulgu 8: eskiden
+        force=True parametresiyle aynı sınıfı da atıp yeniden kurarak bunu
+        yapıyordu; artık tek mekanizma var, o da highlighter.rebuild(). ) """
         highlighter_cls = PythonHighlighter if file_path and file_path.lower().endswith(".py") else CppHighlighter
-        if isinstance(self.highlighter, highlighter_cls) and not force:
+        if isinstance(self.highlighter, highlighter_cls):
             return
         self.highlighter.setDocument(None)
         self.highlighter = highlighter_cls(self.document())
+
+    def refresh_theme(self):
+        """ Paletten renk KOPYALAYAN durumları — highlighter kuralları ve
+        arama-eşleşmesi vurgusu — geçerli paletle yerinde tazeler.
+        IDEWindow.apply_settings açık her editör için bunu çağırır; açılış
+        (__init__ sonunda) ve ':reload' artık aynı yoldan (apply_settings)
+        geçtiği için ikisi de bu tazelemeyi alır (bkz. kod incelemesi Bulgu 1).
+
+        set_highlighter_for_file'ın işi bu DEĞİL (o yalnız dosya uzantısı
+        değişince SINIF değiştirir, bkz. yukarısı); highlighter nesnesini
+        atıp yeniden kurmaya gerek yok, rebuild() aynı nesneyi yerinde
+        günceller. """
+        self.highlighter.rebuild()
+        self._highlight_matches()
 
     # Terminal panelindekiyle aynı aile: Alt+Shift tabanlı sekme/odak kısayolları
     _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
