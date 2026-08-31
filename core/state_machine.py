@@ -14,6 +14,7 @@ class StateMachine:
     KNOWN_COMMANDS = (
         "d", "w", "b", "y", "p", "wq", "q", "qa", "wqa", "ts", "cd",
         "term", "termnew", "tabnew", "tabclose", "tabnext", "tabprev",
+        "find",
     )
     COMMAND_DESCRIPTIONS = {
         "d": "geçerli satırı sil",
@@ -26,6 +27,7 @@ class StateMachine:
         "qa": "her şeyi kapat ve çık",
         "wqa": "kaydet, her şeyi kapat ve çık",
         "ts": "bulanık dosya arama",
+        "find": "dosya içinde ara (:find <desen>)",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
         "termnew": "yeni terminal sekmesi",
@@ -43,13 +45,20 @@ class StateMachine:
     # --- NORMAL MOD ---
 
     def handle_normal_key(self, event):
-        """ NORMAL moddayken tek bir çıplak tuşa karşılık gelir: 'i' Insert moduna,
-        ':' ise gerçek komut satırına geçirir. Başka hiçbir çıplak tuş yok. """
-        text = event.text().lower()
+        """ NORMAL moddaki çıplak tuşlar: 'i' Insert moduna, ':' gerçek komut
+        satırına, 'n'/'N' son aramanın sonraki/önceki eşleşmesine gider.
+
+        Büyük/küçük harf ayrımı korunur ('N' ile 'n' farklı komut); bu yüzden
+        event.text() küçük harfe indirilmiyor. """
+        text = event.text()
         if text == "i":
             self._enter_insert_mode()
         elif text == ":":
             self.start_command_line()
+        elif text == "n":
+            self.editor.search_next()
+        elif text == "N":
+            self.editor.search_next(backward=True)
 
     # --- COMMAND MOD (gerçek ':' komut satırı) ---
 
@@ -168,6 +177,14 @@ class StateMachine:
             # Argümansızsa (sadece 'cd') boş string yollanır: ana dizine gidilir.
             path = text[2:].strip()
             self.editor.change_directory_requested.emit(path)
+        elif text == "find" or text.startswith("find "):
+            # ':find <desen>' — argümansız kullanım son deseni tekrar arar
+            # (Vim'de çıplak '/' + Enter'ın karşılığı).
+            pattern = text[4:].strip()
+            if pattern:
+                self.editor.search(pattern)
+            else:
+                self.editor.search_next()
         else:
             match text:
                 case "d":
@@ -218,11 +235,9 @@ class StateMachine:
         self.editor.command_suggestions_changed.emit([], -1)
 
     def _goto_line(self, line_number):
-        """ ':42' gibi sayısal komutlarla belirtilen satıra imleci taşır. """
-        cursor = self.editor.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.Start)
-        cursor.movePosition(QTextCursor.MoveOperation.Down, QTextCursor.MoveMode.MoveAnchor, line_number - 1)
-        self.editor.setTextCursor(cursor)
+        """ ':42' gibi sayısal komutlarla belirtilen satıra imleci taşır.
+        (Asıl iş editörde; ':sym' paleti de aynı yeri kullanıyor.) """
+        self.editor.goto_line(line_number)
 
     # --- KOMUT FONKSİYONLARI ---
 

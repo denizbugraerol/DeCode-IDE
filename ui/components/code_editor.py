@@ -1,7 +1,8 @@
-from PyQt6.QtWidgets import QPlainTextEdit, QWidget
+from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal
-from PyQt6.QtGui import QTextCursor, QPainter, QColor
+from PyQt6.QtGui import QTextCursor, QTextCharFormat, QPainter, QColor
 from ui.components.syntax_highlighter import CppHighlighter, PythonHighlighter
+from core.search import find_all, find_next
 from core.state_machine import StateMachine
 
 
@@ -45,6 +46,9 @@ class ModalEditor(QPlainTextEdit):
         # Bu sekmenin hangi dosyayı gösterdiği (henüz kaydedilmemişse None).
         # Sekme başlığı, ':w' ve 'zaten açık mı' kontrolü bunu kullanır.
         self.file_path = None
+
+        # ':find <desen>' ile aranan son desen; 'n'/'N' bunu kullanır.
+        self.search_pattern = ""
 
         # İmleç genişliğini ayarlayarak modları görselleştiriyoruz
         self.cursor_width_insert = 1
@@ -111,6 +115,11 @@ class ModalEditor(QPlainTextEdit):
             if event.key() in nav_keys or event.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 super().keyPressEvent(event)
 
+            # Escape, text() olarak boş değil ('\x1b') döndüğü için aşağıdaki
+            # 'yazılabilir tuş' dalından ÖNCE ele alınmalı.
+            elif event.key() == Qt.Key.Key_Escape:
+                self.clear_search()
+
             # 'i' ve ':' dahil, yazılabilir tuşları State Machine'e yönlendiriyoruz
             # (':' gibi Shift gerektiren tuşlar için Shift de kabul edilir)
             elif event.text() and event.modifiers() in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ShiftModifier):
@@ -135,6 +144,69 @@ class ModalEditor(QPlainTextEdit):
         else:
             # Escape değilse, standart yazma işlemini yap (QPlainTextEdit'in kendi işlevi)
             super().keyPressEvent(event)
+
+    # --- Dosya içi arama (':find', 'n', 'N') ---
+
+    def search(self, pattern):
+        """ ':find <desen>' — deseni saklar, tüm eşleşmeleri vurgular ve
+        imleçten sonraki ilk eşleşmeye atlar. """
+        self.search_pattern = pattern
+        self._highlight_matches()
+        return self.search_next()
+
+    def search_next(self, backward=False):
+        """ 'n' / 'N' — saklı desenin sonraki (ya da önceki) eşleşmesini seçer.
+        Dosya sonuna gelince başa sarar. Desen yoksa ya da hiç eşleşme yoksa
+        False döndürür. """
+        if not self.search_pattern:
+            return False
+
+        cursor = self.textCursor()
+        # Aramaya imlecin bir yanından başlıyoruz ki aynı eşleşmede takılı
+        # kalmayalım (Vim'de de 'n' bulunduğun eşleşmeyi tekrar bulmaz).
+        start = cursor.selectionStart() - 1 if backward else cursor.selectionStart() + 1
+
+        index = find_next(self.toPlainText(), self.search_pattern, start, backward)
+        if index is None:
+            print(f"Desen bulunamadı: {self.search_pattern}")
+            return False
+
+        cursor.setPosition(index)
+        cursor.setPosition(index + len(self.search_pattern), QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(cursor)
+        return True
+
+    def clear_search(self):
+        """ NORMAL modda Escape — vurguyu temizler (Vim'deki ':nohlsearch').
+        Desen saklı kalır, 'n' ile aramaya devam edilebilir. """
+        self.setExtraSelections([])
+
+    def _highlight_matches(self):
+        """ Aranan desenin tüm geçişlerini Tokyo Night vurgusuyla boyar. """
+        selections = []
+        if self.search_pattern:
+            highlight = QTextCharFormat()
+            highlight.setBackground(QColor("#3d59a1"))
+            highlight.setForeground(QColor("#ffffff"))
+
+            for index in find_all(self.toPlainText(), self.search_pattern):
+                cursor = QTextCursor(self.document())
+                cursor.setPosition(index)
+                cursor.setPosition(index + len(self.search_pattern), QTextCursor.MoveMode.KeepAnchor)
+                selection = QTextEdit.ExtraSelection()
+                selection.cursor = cursor
+                selection.format = highlight
+                selections.append(selection)
+
+        self.setExtraSelections(selections)
+
+    def goto_line(self, line_number):
+        """ ':42' ve ':sym' ile seçilen sembol için: 1 tabanlı satıra atlar. """
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        cursor.movePosition(QTextCursor.MoveOperation.Down,
+                            QTextCursor.MoveMode.MoveAnchor, max(0, line_number - 1))
+        self.setTextCursor(cursor)
 
     # --- Satır numarası gutter'ı: Qt'nin standart Code Editor deseni ---
 
