@@ -711,7 +711,8 @@ metnidir; taşırken uygulanacak kural mekanik:
 | `#7aa2f7` | `$blue` |
 | `font-family: 'Fira Code', 'Consolas', monospace` | `font-family: '$font_family', 'Consolas', monospace` |
 | `font-size: 15px` (QPlainTextEdit) | `font-size: ${size_editor}px` |
-| `font-size: 16px` (commandLine, palettePrompt) | `${size_command_line}px` |
+| `font-size: 16px` (commandLine) | `${size_command_line}px` |
+| `font-size: 15px` (palettePrompt) | `${size_editor}px` |
 | `font-size: 14px` (QTreeView) | `${size_sidebar}px` |
 | `font-size: 13px` (welcomeSubtitle, welcomeHints) | `${size_row}px` |
 | `font-size: 12px` (editorTabs::tab) | `${size_tab}px` |
