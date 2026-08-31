@@ -40,3 +40,31 @@ def test_bos_desen_none():
 
 def test_find_all_tum_konumlari_verir():
     assert find_all(METIN, "foo") == [4, 12]
+
+
+from core.search import parse_replace_args, replace_all
+
+
+def test_parse_replace_args_iki_kelime():
+    assert parse_replace_args("eski yeni") == ("eski", "yeni")
+
+
+def test_parse_replace_args_tirnakli_argumani_bozmaz():
+    assert parse_replace_args('"iki söz" yeni') == ("iki söz", "yeni")
+
+
+def test_parse_replace_args_eksik_arguman_none():
+    assert parse_replace_args("sadece") is None
+    assert parse_replace_args("") is None
+
+
+def test_parse_replace_args_kapanmamis_tirnak_none():
+    assert parse_replace_args('"acik yeni') is None
+
+
+def test_replace_all_sayiyi_dondurur():
+    assert replace_all("foo bar foo", "foo", "baz") == ("baz bar baz", 2)
+
+
+def test_replace_all_bos_eski_dokunmaz():
+    assert replace_all("foo", "", "x") == ("foo", 0)

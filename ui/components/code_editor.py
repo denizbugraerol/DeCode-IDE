@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QTextCharFormat, QPainter, QColor
 from ui.components.syntax_highlighter import CppHighlighter, PythonHighlighter
-from core.search import find_all, find_next
+from core.search import find_all, find_next, replace_all
 from core.state_machine import StateMachine
 
 
@@ -199,6 +199,28 @@ class ModalEditor(QPlainTextEdit):
                 selections.append(selection)
 
         self.setExtraSelections(selections)
+
+    def replace_all_text(self, old, new):
+        """ ':replace eski yeni' — tüm eşleşmeleri değiştirir ve değiştirme
+        sayısını döndürür. Tek bir geri-al adımı olsun diye belgenin tamamı
+        beginEditBlock/endEditBlock arasında yeniden yazılır; imleç konumu
+        elden geldiğince korunur. """
+        new_text, count = replace_all(self.toPlainText(), old, new)
+        if count == 0:
+            return 0
+
+        cursor = self.textCursor()
+        position = cursor.position()
+
+        cursor.beginEditBlock()
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.insertText(new_text)
+        cursor.endEditBlock()
+
+        cursor.setPosition(min(position, len(new_text)))
+        self.setTextCursor(cursor)
+        self._highlight_matches()
+        return count
 
     def goto_line(self, line_number):
         """ ':42' ve ':sym' ile seçilen sembol için: 1 tabanlı satıra atlar. """

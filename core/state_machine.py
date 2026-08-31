@@ -3,6 +3,8 @@ import os
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor
 
+from core.search import parse_replace_args
+
 class StateMachine:
     """ NORMAL moddaki çıplak tuşları (i, :) ve COMMAND moddaki gerçek
     ':' komut satırını (Enter'a basılana kadar serbestçe yazılıp sonra
@@ -14,7 +16,7 @@ class StateMachine:
     KNOWN_COMMANDS = (
         "d", "w", "b", "y", "p", "wq", "q", "qa", "wqa", "ts", "cd",
         "term", "termnew", "tabnew", "tabclose", "tabnext", "tabprev",
-        "find",
+        "find", "replace",
     )
     COMMAND_DESCRIPTIONS = {
         "d": "geçerli satırı sil",
@@ -28,6 +30,7 @@ class StateMachine:
         "wqa": "kaydet, her şeyi kapat ve çık",
         "ts": "bulanık dosya arama",
         "find": "dosya içinde ara (:find <desen>)",
+        "replace": "metni değiştir (:replace eski yeni)",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
         "termnew": "yeni terminal sekmesi",
@@ -185,6 +188,14 @@ class StateMachine:
                 self.editor.search(pattern)
             else:
                 self.editor.search_next()
+        elif text.startswith("replace "):
+            arguments = parse_replace_args(text[8:])
+            if arguments is None:
+                print("Kullanım: :replace eski yeni  (boşluk içeren metin için tırnak)")
+            else:
+                old, new = arguments
+                count = self.editor.replace_all_text(old, new)
+                print(f"{count} değiştirme yapıldı." if count else f"Bulunamadı: {old}")
         else:
             match text:
                 case "d":

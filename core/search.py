@@ -44,3 +44,24 @@ def find_all(text, pattern, case_sensitive=False):
         positions.append(index)
         index = haystack.find(needle, index + len(needle))
     return positions
+
+
+def parse_replace_args(argument):
+    """ ':replace eski yeni' argümanını (eski, yeni) olarak ayırır. Tırnaklı
+    kullanım desteklenir: ':replace "iki söz" yeni'. Argüman sayısı ikiden
+    farklıysa ya da tırnak kapanmamışsa None döndürür. """
+    try:
+        parts = shlex.split(argument)
+    except ValueError:      # kapanmamış tırnak
+        return None
+    if len(parts) != 2:
+        return None
+    return parts[0], parts[1]
+
+
+def replace_all(text, old, new):
+    """ Metindeki tüm 'old' geçişlerini 'new' ile değiştirir; (yeni metin,
+    değiştirme sayısı) döndürür. """
+    if not old:
+        return text, 0
+    return text.replace(old, new), text.count(old)

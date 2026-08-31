@@ -42,3 +42,20 @@ def test_find_komutu_oneri_listesinde(qapp):
     editor = _editor(qapp)
     eslesmeler = editor.state_machine._matches_for("fi")
     assert any(ad == "find" for ad, _aciklama in eslesmeler)
+
+
+def test_replace_komutu_metni_degistirir(qapp):
+    editor = _editor(qapp)
+    QTest.keyClicks(editor, ":replace foo bar")
+    QTest.keyClick(editor, Qt.Key.Key_Return)
+    assert "foo" not in editor.toPlainText()
+    assert editor.toPlainText().count("bar") == 2
+
+
+def test_replace_tek_geri_al_adimi(qapp):
+    editor = _editor(qapp)
+    onceki = editor.toPlainText()
+    QTest.keyClicks(editor, ":replace foo bar")
+    QTest.keyClick(editor, Qt.Key.Key_Return)
+    editor.undo()
+    assert editor.toPlainText() == onceki
