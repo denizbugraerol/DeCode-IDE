@@ -52,3 +52,20 @@ def test_normal_modda_tab_metne_dokunmaz(qapp):
     editor = _editor(qapp, expand_tabs=True)
     QTest.keyClick(editor, Qt.Key.Key_Tab)
     assert editor.toPlainText() == ""
+
+
+def test_terminal_satir_sayisi_ayardan_gelir(pencere):
+    """ Görünümün kendi yüksekliğine bakıyoruz (setFixedHeight ile anında
+    kesinleşir); panelin yüksekliği layout turuna bağlı olduğu için offscreen'de
+    kırılgan olurdu. """
+    pencere.show()
+    pencere.terminal_panel.toggle()          # ':term'
+    goruntu = pencere.terminal_panel.stack.currentWidget()
+    assert goruntu.rows == 9
+    onceki_yukseklik = goruntu.height()
+
+    pencere.settings["terminal"]["rows"] = 20
+    pencere.apply_settings()
+
+    assert goruntu.rows == 20
+    assert goruntu.height() > onceki_yukseklik

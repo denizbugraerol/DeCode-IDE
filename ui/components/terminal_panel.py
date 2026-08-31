@@ -45,21 +45,28 @@ class TerminalView(QWidget):
         Qt.Key.Key_Delete: b"\x1b[3~", Qt.Key.Key_Insert: b"\x1b[2~",
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, rows=ROWS, parent=None):
         super().__init__(parent)
+        self.rows = rows
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._process = TerminalProcess(rows=self.ROWS, cols=80, parent=self)
+        self._process = TerminalProcess(rows=self.rows, cols=80, parent=self)
         self._process.output_ready.connect(self.update)
         self._process.finished.connect(self.update)
 
     # --- Boyut ---
 
+    def set_rows(self, rows):
+        """ Satır sayısını değiştirir. Yüksekliği ve PTY boyutunu yeniden
+        ölçmek panelin işi: apply_font'u o çağırıyor (bkz.
+        TerminalPanel.apply_settings). """
+        self.rows = rows
+
     def apply_font(self, font):
         """ Panelden gelen (editörle aynı) fontu uygular ve yüksekliği tam
-        9 satıra sabitler. """
+        satır sayısına sabitler. """
         self.setFont(font)
         line_height = self.fontMetrics().lineSpacing()
-        self.setFixedHeight(self.ROWS * line_height + 2 * self.PADDING)
+        self.setFixedHeight(self.rows * line_height + 2 * self.PADDING)
         self._recompute_cols()
 
     def _recompute_cols(self):
@@ -67,7 +74,7 @@ class TerminalView(QWidget):
         if char_width <= 0:
             return
         available = max(char_width, self.width() - 2 * self.PADDING)
-        self._process.resize(self.ROWS, max(1, available // char_width))
+        self._process.resize(self.rows, max(1, available // char_width))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -199,6 +206,7 @@ class TerminalPanel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         self._font = None
+        self._rows = TerminalView.ROWS
 
         self.tab_bar = QTabBar()
         self.tab_bar.setObjectName("terminalTabBar")
@@ -247,7 +255,7 @@ class TerminalPanel(QWidget):
     # --- Sekmeler ---
 
     def new_tab(self):
-        view = TerminalView()
+        view = TerminalView(rows=self._rows)
         if self._font is not None:
             view.apply_font(self._font)
 
@@ -312,9 +320,16 @@ class TerminalPanel(QWidget):
         self._recompute_height()
 
     def apply_settings(self, terminal_settings):
-        """ Saplama: gövdesi Görev 6'da doluyor (satır sayısı). IDEWindow.apply_settings
-        şimdiden bunu çağırabilsin diye buradayız. """
-        pass
+        """ Ayar dosyasındaki [terminal] bölümü. Açık oturumlar kapanmadan
+        yeniden boyutlanır. """
+        self._rows = terminal_settings["rows"]
+        for i in range(self.stack.count()):
+            view = self.stack.widget(i)
+            view.set_rows(self._rows)
+            if self._font is not None:
+                # Yükseklik ve PTY satır sayısı fontla birlikte ölçülüyor.
+                view.apply_font(self._font)
+        self._recompute_height()
 
     def _recompute_height(self):
         """ Panel yüksekliği = sekme çubuğu + 9 satırlık terminal alanı.
