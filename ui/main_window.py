@@ -314,34 +314,34 @@ class IDEWindow(QMainWindow):
                 font-family: 'Fira Code', 'Consolas', monospace;
                 font-size: 16px;
             }
-            QWidget#commandSuggestions {
+            QWidget#floatingList {
                 background-color: #1f2335;
                 border: 1px solid #414868;
                 border-radius: 8px;
             }
-            QScrollArea#commandSuggestionsScroll {
+            QScrollArea#floatingListScroll {
                 background: transparent;
                 border: none;
             }
-            QScrollArea#commandSuggestionsScroll QScrollBar:vertical {
+            QScrollArea#floatingListScroll QScrollBar:vertical {
                 background: transparent;
                 width: 6px;
                 margin: 0;
             }
-            QScrollArea#commandSuggestionsScroll QScrollBar::handle:vertical {
+            QScrollArea#floatingListScroll QScrollBar::handle:vertical {
                 background-color: #414868;
                 border-radius: 3px;
                 min-height: 24px;
             }
-            QScrollArea#commandSuggestionsScroll QScrollBar::handle:vertical:hover {
+            QScrollArea#floatingListScroll QScrollBar::handle:vertical:hover {
                 background-color: #565f89;
             }
-            QScrollArea#commandSuggestionsScroll QScrollBar::add-line:vertical,
-            QScrollArea#commandSuggestionsScroll QScrollBar::sub-line:vertical {
+            QScrollArea#floatingListScroll QScrollBar::add-line:vertical,
+            QScrollArea#floatingListScroll QScrollBar::sub-line:vertical {
                 height: 0;
             }
-            QScrollArea#commandSuggestionsScroll QScrollBar::add-page:vertical,
-            QScrollArea#commandSuggestionsScroll QScrollBar::sub-page:vertical {
+            QScrollArea#floatingListScroll QScrollBar::add-page:vertical,
+            QScrollArea#floatingListScroll QScrollBar::sub-page:vertical {
                 background: transparent;
             }
             QWidget#terminalPanel {
