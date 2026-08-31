@@ -25,7 +25,7 @@ class StateMachine:
         "q": "sekmeyi kapat (son sekmeyse çıkar)",
         "qa": "her şeyi kapat ve çık",
         "wqa": "kaydet, her şeyi kapat ve çık",
-        "ts": "telescope arama (yakında)",
+        "ts": "bulanık dosya arama",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
         "termnew": "yeni terminal sekmesi",

@@ -6,6 +6,8 @@ from ui.components.sidebar import Sidebar
 from ui.components.editor_tabs import EditorTabs
 from ui.components.bottom_panel import StatusLine, CommandLine, CommandSuggestions
 from ui.components.terminal_panel import TerminalPanel
+from ui.components.command_palette import CommandPalette
+from core.file_index import FileIndexWorker
 from core.file_manager import FileManager
 
 
@@ -74,6 +76,15 @@ class IDEWindow(QMainWindow):
         self.command_suggestions = CommandSuggestions()
         self.command_suggestions.setParent(self.central_widget)
         self.command_suggestions.hide()
+
+        # --- Telescope paleti: ':ts' ve ':sym' için ortak yüzen seçici.
+        # Öneri kutusundan farkı, odağı kendisinin alması. ---
+        self.command_palette = CommandPalette()
+        self.command_palette.setParent(self.central_widget)
+        self.command_palette.hide()
+        self.command_palette.accepted.connect(self._on_palette_accepted)
+        self.command_palette.cancelled.connect(self._close_palette)
+        self._file_index_worker = None   # QThread; referans tutulmazsa toplanır
 
         #Çift tıklama, Enter ve (dosyalarda) sağ ok ile açma sinyallerini dinle ve open_file fonksiyonuna yönlendir
         self.sidebar.doubleClicked.connect(self.open_file)
@@ -202,6 +213,8 @@ class IDEWindow(QMainWindow):
             # Sadece taşımak yetmez: pencere alçaldıysa kutunun boyu da
             # yeniden sınırlanmalı.
             self._show_command_suggestions()
+        if self.command_palette.isVisible():
+            self._show_palette()
 
     def _update_cursor_position(self):
         """ İmleç her hareket ettiğinde (ve sekme değişince) statusline'daki
@@ -218,11 +231,18 @@ class IDEWindow(QMainWindow):
         file_path = self.sidebar.get_file_path(index)
         if os.path.isdir(file_path):
             return
+        self._open_path(file_path)
 
+    def _open_path(self, file_path):
+        """ Dosyayı okuyup uygun sekmede açar. Sidebar, telescope paleti ve
+        ':openfile <yol>' aynı yoldan geçer. """
         try:
             content = FileManager.read_file(file_path)
         except UnicodeDecodeError:
             print(f"'{os.path.basename(file_path)}' metin formatında değil (resim veya derlenmiş dosya).")
+            return
+        except FileNotFoundError:
+            print(f"Dosya bulunamadı: {file_path}")
             return
         except Exception as e:
             print(f"Dosya okunurken bir hata oluştu: {e}")
@@ -254,9 +274,46 @@ class IDEWindow(QMainWindow):
                 self.sidebar.setFocus()
 
     def open_telescope_search(self):
-        """ ':ts' komutuyla tetiklenir — LazyVim'deki Telescope'a benzer bulanık arama modunun temeli.
-        Henüz gerçek bir arama arayüzü yok; Faz 2/3'te ui/components/command_palette.py üzerinden uygulanacak. """
-        print("Telescope arama modu tetiklendi (henüz uygulanmadı).")
+        """ ':ts' — çalışma dizinini arka planda tarar ve bulanık dosya arama
+        paletini açar. Tarama bitene kadar palet boş ama kullanılabilir
+        durumda durur; sonuç gelince kendiliğinden dolar. """
+        root = os.getcwd()
+        self.command_palette.open_with(f"Dosya ara ({os.path.basename(root)})", [], mode="file")
+        self._show_palette()
+
+        self._file_index_worker = FileIndexWorker(root, parent=self)
+        self._file_index_worker.ready.connect(self._on_file_index_ready)
+        self._file_index_worker.start()
+
+    def _on_file_index_ready(self, paths):
+        """ Arka plan taraması bitti: palet hâlâ dosya modunda açıksa doldur. """
+        if self.command_palette.isVisible() and self.command_palette.mode == "file":
+            self.command_palette.set_items([(path, path) for path in paths])
+
+    def _show_palette(self):
+        """ Paleti ekranın üst üçte birinde, yatayda ortalayarak gösterir ve
+        odağı ona verir. """
+        area = self.central_widget.rect()
+        self.command_palette.adjustSize()
+        x = (area.width() - self.command_palette.width()) // 2
+        y = max(24, (area.height() - self.command_palette.height()) // 3)
+        self.command_palette.move(x, y)
+        self.command_palette.show()
+        self.command_palette.raise_()
+        self.command_palette.setFocus()
+
+    def _close_palette(self):
+        self.command_palette.hide()
+        self.focus_editor()
+
+    def _on_palette_accepted(self, payload):
+        """ Palette Enter'a basılınca: dosya modunda dosyayı açar, sembol
+        modunda o satıra atlar. """
+        mode = self.command_palette.mode
+        self._close_palette()
+
+        if mode == "file":
+            self._open_path(os.path.join(os.getcwd(), payload))
 
     def _change_directory(self, path):
         """ ':cd [yol]' ile tetiklenir — gerçek Vim'deki :cd gibi çalışma dizinini
@@ -318,6 +375,16 @@ class IDEWindow(QMainWindow):
                 background-color: #1f2335;
                 border: 1px solid #414868;
                 border-radius: 8px;
+            }
+            QWidget#commandPalette { background-color: transparent; }
+            QLabel#palettePrompt {
+                background-color: #1f2335;
+                color: #c0caf5;
+                border: 1px solid #414868;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-family: 'Fira Code', 'Consolas', monospace;
+                font-size: 15px;
             }
             QScrollArea#floatingListScroll {
                 background: transparent;
