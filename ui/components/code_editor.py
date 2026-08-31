@@ -26,6 +26,7 @@ class ModalEditor(QPlainTextEdit):
     save_requested = pyqtSignal()
     sidebar_toggle_requested = pyqtSignal()
     telescope_requested = pyqtSignal()
+    open_path_requested = pyqtSignal(str)
     change_directory_requested = pyqtSignal(str)
     quit_requested = pyqtSignal()
     terminal_toggle_requested = pyqtSignal()

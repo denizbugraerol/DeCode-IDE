@@ -96,6 +96,7 @@ class IDEWindow(QMainWindow):
         self.editor_tabs.save_requested.connect(self.save_file)
         self.editor_tabs.sidebar_toggle_requested.connect(self.toggle_sidebar_focus)
         self.editor_tabs.telescope_requested.connect(self.open_telescope_search)
+        self.editor_tabs.open_path_requested.connect(self._open_relative_path)
         self.editor_tabs.change_directory_requested.connect(self._change_directory)
         self.editor_tabs.quit_requested.connect(self.close)          # ':qa'
         self.editor_tabs.last_tab_closed.connect(self.close)         # son ':q'
@@ -233,6 +234,13 @@ class IDEWindow(QMainWindow):
             return
         self._open_path(file_path)
 
+    def _open_relative_path(self, path):
+        """ ':openfile <yol>' — göreli yollar çalışma dizinine göre çözülür. """
+        expanded = os.path.expanduser(path)
+        if not os.path.isabs(expanded):
+            expanded = os.path.join(os.getcwd(), expanded)
+        self._open_path(os.path.normpath(expanded))
+
     def _open_path(self, file_path):
         """ Dosyayı okuyup uygun sekmede açar. Sidebar, telescope paleti ve
         ':openfile <yol>' aynı yoldan geçer. """
@@ -241,8 +249,9 @@ class IDEWindow(QMainWindow):
         except UnicodeDecodeError:
             print(f"'{os.path.basename(file_path)}' metin formatında değil (resim veya derlenmiş dosya).")
             return
-        except FileNotFoundError:
-            print(f"Dosya bulunamadı: {file_path}")
+        except ValueError:
+            # FileManager, olmayan yol ya da dizin için ValueError fırlatıyor.
+            print(f"Açılamadı (dosya değil ya da bulunamadı): {file_path}")
             return
         except Exception as e:
             print(f"Dosya okunurken bir hata oluştu: {e}")

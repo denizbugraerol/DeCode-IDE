@@ -59,3 +59,56 @@ def test_replace_tek_geri_al_adimi(qapp):
     QTest.keyClick(editor, Qt.Key.Key_Return)
     editor.undo()
     assert editor.toPlainText() == onceki
+
+
+import os
+
+
+def test_cd_tamamlamasi_sadece_dizin(qapp, tmp_path, monkeypatch):
+    (tmp_path / "klasor").mkdir()
+    (tmp_path / "dosya.py").write_text("x")
+    monkeypatch.chdir(tmp_path)
+
+    editor = _editor(qapp)
+    metinler = [ad for ad, _a in editor.state_machine._matches_for("cd ")]
+    assert "cd klasor/" in metinler
+    assert not any("dosya.py" in metin for metin in metinler)
+
+
+def test_openfile_tamamlamasi_dosyalari_da_verir(qapp, tmp_path, monkeypatch):
+    (tmp_path / "klasor").mkdir()
+    (tmp_path / "dosya.py").write_text("x")
+    monkeypatch.chdir(tmp_path)
+
+    editor = _editor(qapp)
+    metinler = [ad for ad, _a in editor.state_machine._matches_for("openfile ")]
+    assert "openfile dosya.py" in metinler
+    assert "openfile klasor/" in metinler
+
+
+def test_openfile_komutu_open_path_requested_yayinlar(qapp, tmp_path, monkeypatch):
+    (tmp_path / "dosya.py").write_text("x")
+    monkeypatch.chdir(tmp_path)
+
+    editor = _editor(qapp)
+    yollar = []
+    editor.open_path_requested.connect(yollar.append)
+
+    QTest.keyClicks(editor, ":openfile dosya.py")
+    QTest.keyClick(editor, Qt.Key.Key_Return)
+    assert yollar == ["dosya.py"]
+
+
+def test_openfile_olmayan_yol_sekme_acmaz(qapp, tmp_path, monkeypatch, capsys):
+    """ Hatalı yol çökmemeli ve yeni sekme açmamalı; hata konsola yazılır. """
+    from ui.main_window import IDEWindow
+
+    monkeypatch.chdir(tmp_path)
+    pencere = IDEWindow()
+    onceki_sekme = pencere.editor_tabs.count()
+
+    pencere._open_relative_path("yok/olmayan.py")
+
+    assert pencere.editor_tabs.count() == onceki_sekme
+    assert "bulunamadı" in capsys.readouterr().out
+    pencere.terminal_panel.shutdown()

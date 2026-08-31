@@ -16,7 +16,7 @@ class StateMachine:
     KNOWN_COMMANDS = (
         "d", "w", "b", "y", "p", "wq", "q", "qa", "wqa", "ts", "cd",
         "term", "termnew", "tabnew", "tabclose", "tabnext", "tabprev",
-        "find", "replace",
+        "find", "replace", "openfile",
     )
     COMMAND_DESCRIPTIONS = {
         "d": "geçerli satırı sil",
@@ -31,6 +31,7 @@ class StateMachine:
         "ts": "bulanık dosya arama",
         "find": "dosya içinde ara (:find <desen>)",
         "replace": "metni değiştir (:replace eski yeni)",
+        "openfile": "dosya aç (:openfile <yol>)",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
         "termnew": "yeni terminal sekmesi",
@@ -103,21 +104,23 @@ class StateMachine:
     def _matches_for(self, prefix):
         """ Verilen önekle başlayan bilinen komutları (ad, açıklama) çiftleri
         olarak, alfabetik sırayla döndürür. Önek boşsa hepsini döndürür.
-        ':cd <yol>' için (önek 'cd ' ile başlıyorsa) sabit komut listesi yerine
-        dosya sisteminden dizin adı tamamlaması üretilir. """
+        ':cd <yol>' ve ':openfile <yol>' için sabit komut listesi yerine dosya
+        sisteminden yol tamamlaması üretilir (':cd' sadece dizinleri,
+        ':openfile' dosyaları da gösterir). """
         if prefix.startswith("cd "):
-            return self._path_matches_for(prefix)
+            return self._path_matches_for("cd", prefix[3:], include_files=False)
+        if prefix.startswith("openfile "):
+            return self._path_matches_for("openfile", prefix[9:], include_files=True)
         names = [c for c in self.KNOWN_COMMANDS if c.startswith(prefix)] if prefix else list(self.KNOWN_COMMANDS)
         names.sort()
         return [(name, self.COMMAND_DESCRIPTIONS.get(name, "")) for name in names]
 
-    def _path_matches_for(self, prefix):
-        """ ':cd <yol>' için shell tarzı dizin adı tamamlaması. 'cd ' sonrasını
+    def _path_matches_for(self, command, path_part, include_files):
+        """ ':cd' / ':openfile' için shell tarzı yol tamamlaması. Yazılanı
         'hangi dizinde' (head) / 'hangi önekle' (fragment) diye ikiye ayırıp o
-        dizindeki alt dizinleri fragment'e göre filtreler. Sonuçlar sondaki '/'
+        dizindeki girdileri fragment'e göre filtreler. Dizinler sondaki '/'
         ile döner (ör. 'DeCode-IDE/') — Tab'a tekrar basıp iç içe dizinlere
         inmeye devam edilebilsin diye. """
-        path_part = prefix[3:]
         head, fragment = os.path.split(path_part)
         search_dir = os.path.expanduser(head) if head else "."
 
@@ -127,16 +130,23 @@ class StateMachine:
             return []
 
         show_hidden = fragment.startswith(".")
-        names = sorted(
-            name for name in entries
-            if name.startswith(fragment)
-            and (show_hidden or not name.startswith("."))
-            and os.path.isdir(os.path.join(search_dir, name))
-        )
+        matches = []
+        for name in sorted(entries):
+            if not name.startswith(fragment):
+                continue
+            if not show_hidden and name.startswith("."):
+                continue
 
-        # Tamamlanan metinde kullanıcının yazdığı 'head' aynen korunur ('~' burada
-        # genişletilmez — sadece arama_dizini için genişletildi, yukarıda).
-        return [(f"cd {os.path.join(head, name)}/", "") for name in names]
+            is_dir = os.path.isdir(os.path.join(search_dir, name))
+            if not is_dir and not include_files:
+                continue
+
+            # Tamamlanan metinde kullanıcının yazdığı 'head' aynen korunur ('~'
+            # burada genişletilmez — sadece arama dizini için genişletildi).
+            joined = os.path.join(head, name)
+            matches.append((f"{command} {joined}/" if is_dir else f"{command} {joined}", ""))
+
+        return matches
 
     def _refresh_suggestions(self):
         """ Yazma/silme sonrası (Tab dışı her değişiklikte) tamamlama döngüsünü
@@ -180,6 +190,11 @@ class StateMachine:
             # Argümansızsa (sadece 'cd') boş string yollanır: ana dizine gidilir.
             path = text[2:].strip()
             self.editor.change_directory_requested.emit(path)
+        elif text.startswith("openfile "):
+            # ':openfile <yol>' — dosyayı sekmede açar (IDEWindow karşılar).
+            path = text[9:].strip()
+            if path:
+                self.editor.open_path_requested.emit(path)
         elif text == "find" or text.startswith("find "):
             # ':find <desen>' — argümansız kullanım son deseni tekrar arar
             # (Vim'de çıplak '/' + Enter'ın karşılığı).
