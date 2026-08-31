@@ -961,6 +961,19 @@ kurabilsin:
         return QColor(theme.color(token if token else default_token))
 ```
 
+`_resolve_one`'daki **6 haneli truecolor dalı korunmalı** — pyte, 256-renk ve
+truecolor SGR kodlarını (`\x1b[38;2;r;g;bm`) isimli renk yerine 6 haneli hex
+string olarak veriyor ve `TerminalProcess` `TERM=xterm-256color` ayarlıyor.
+Palet tokenlarının önünde denenmesi güvenli: isimli ANSI renklerinin hiçbiri
+6 karakter değil, `"default"` ise 7.
+
+```python
+    def _resolve_one(self, value, default_token):
+        if len(value) == 6:
+            return QColor(f"#{value}")
+        return self._ansi_color(value, default_token)
+```
+
 `DEFAULT_FG` / `DEFAULT_BG` sınıf sabitleri yerine boyama anında
 `QColor(theme.color("fg"))` ve `QColor(theme.color("bg_dark"))`.
 
