@@ -8,6 +8,7 @@ from ui.components.bottom_panel import StatusLine, CommandLine, CommandSuggestio
 from ui.components.terminal_panel import TerminalPanel
 from ui.components.command_palette import CommandPalette
 from ui.components.welcome_page import WelcomePage
+from ui import theme
 from core.file_index import FileIndexWorker
 from core.symbols import extract_symbols
 from core.file_manager import FileManager
@@ -415,146 +416,14 @@ class IDEWindow(QMainWindow):
         print(f"Çalışma dizini değiştirildi: {target}")
 
     def _apply_theme(self):
-        # Tokyo Night esintili arayüz renkleri
-        stylesheet = """
-            QMainWindow { background-color: #1a1b26; }
-            QTreeView {
-                background-color: #16161e;
-                color: #c0caf5;
-                border: none;
-                font-size: 14px;
-                outline: none;
-            }
-            QTreeView::item:selected { background-color: #283457; color: #ffffff; }
-            QTreeView::item:hover { background-color: #1f2335; }
-            QPlainTextEdit {
-                background-color: #1a1b26;
-                color: #c0caf5;
-                border: none;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 15px;
-                padding: 10px;
-            }
-            QSplitter::handle { background-color: #1f2335; width: 2px; }
-            QWidget#statusLine {
-                background-color: #1f2335;
-            }
-            QWidget#statusLine QLabel {
-                color: #c0caf5;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 11px;
-            }
-            QLabel#commandLine {
-                background-color: #1f2335;
-                color: #c0caf5;
-                border: 1px solid #414868;
-                border-radius: 8px;
-                padding: 4px 12px;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 16px;
-            }
-            QWidget#floatingList {
-                background-color: #1f2335;
-                border: 1px solid #414868;
-                border-radius: 8px;
-            }
-            QWidget#welcomePage { background-color: #1a1b26; }
-            QLabel#welcomeTitle {
-                color: #7aa2f7;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 28px;
-                font-weight: bold;
-            }
-            QLabel#welcomeSubtitle {
-                color: #565f89;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 13px;
-            }
-            QLabel#welcomeHints {
-                color: #c0caf5;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 13px;
-                line-height: 150%;
-            }
-            QWidget#commandPalette { background-color: transparent; }
-            QLabel#palettePrompt {
-                background-color: #1f2335;
-                color: #c0caf5;
-                border: 1px solid #414868;
-                border-radius: 8px;
-                padding: 8px 12px;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 15px;
-            }
-            QScrollArea#floatingListScroll {
-                background: transparent;
-                border: none;
-            }
-            QScrollArea#floatingListScroll QScrollBar:vertical {
-                background: transparent;
-                width: 6px;
-                margin: 0;
-            }
-            QScrollArea#floatingListScroll QScrollBar::handle:vertical {
-                background-color: #414868;
-                border-radius: 3px;
-                min-height: 24px;
-            }
-            QScrollArea#floatingListScroll QScrollBar::handle:vertical:hover {
-                background-color: #565f89;
-            }
-            QScrollArea#floatingListScroll QScrollBar::add-line:vertical,
-            QScrollArea#floatingListScroll QScrollBar::sub-line:vertical {
-                height: 0;
-            }
-            QScrollArea#floatingListScroll QScrollBar::add-page:vertical,
-            QScrollArea#floatingListScroll QScrollBar::sub-page:vertical {
-                background: transparent;
-            }
-            QWidget#terminalPanel {
-                background-color: #16161e;
-                border-top: 2px solid #414868;
-            }
+        """ Geçerli paleti ve fontu pencereye uygular. Palet ui/theme'de;
+        burada yalnız üretilen QSS takılıyor. """
+        self.setStyleSheet(theme.stylesheet(theme.palette(), "Fira Code", 15))
 
-            /* --- Sekmeler: editör (üstte) ve terminal (panel içinde) --- */
-            QTabWidget#editorTabs::pane {
-                border: none;
-                background-color: #1a1b26;
-            }
-            QTabWidget#editorTabs > QTabBar,
-            QTabBar#terminalTabBar {
-                background-color: #16161e;
-                qproperty-drawBase: 0;
-            }
-            QTabWidget#editorTabs > QTabBar::tab,
-            QTabBar#terminalTabBar::tab {
-                background-color: #16161e;
-                color: #565f89;
-                border: none;
-                border-right: 1px solid #1a1b26;
-                border-bottom: 2px solid transparent;
-                padding: 5px 14px;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 12px;
-            }
-            QTabWidget#editorTabs > QTabBar::tab:hover,
-            QTabBar#terminalTabBar::tab:hover {
-                background-color: #1f2335;
-                color: #c0caf5;
-            }
-            QTabWidget#editorTabs > QTabBar::tab:selected,
-            QTabBar#terminalTabBar::tab:selected {
-                background-color: #1a1b26;
-                color: #7aa2f7;
-                border-bottom: 2px solid #7aa2f7;
-            }
-            QTabBar#terminalTabBar::tab {
-                font-size: 11px;
-                padding: 3px 12px;
-            }
-        """
-        self.setStyleSheet(stylesheet)
-        self.terminal_panel.sync_font_with_editor(self.editor)
+        # Terminal '9 satır' yüksekliğini editörün QSS'ten gelen gerçek satır
+        # yüksekliğiyle ölçüyor; sekme yoksa ölçecek editör de yok.
+        if self.editor is not None:
+            self.terminal_panel.sync_font_with_editor(self.editor)
 
     def closeEvent(self, event):
         """ Uygulama kapanırken terminaldeki shell sürecini (ve PTY'yi)
