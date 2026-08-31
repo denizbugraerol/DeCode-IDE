@@ -3,24 +3,31 @@ import keyword
 from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
 from PyQt6.QtCore import QRegularExpression
 
+from ui import theme
+
 class CppHighlighter(QSyntaxHighlighter):
     def __init__(self, document):
         super().__init__(document)
+        self.rebuild()
+
+    def rebuild(self):
+        """ Kuralları geçerli paletle yeniden kurar. ':reload' bunu çağırır;
+        renkler QTextCharFormat içine kopyalandığı için palet değişince
+        kendiliğinden güncellenmiyorlar. """
         self.highlighting_rules = []
 
         # --- 1. Yorum Satırları (Soluk ve İtalik) ---
-        # Tokyo Night'ın soluk gri-mavi yorum rengi: #565f89
         comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#565f89"))
+        comment_format.setForeground(QColor(theme.color("fg_dim")))
         comment_format.setFontItalic(True)
         # '//' ile başlayıp satır sonuna kadar giden her şeyi yakalar
         self.highlighting_rules.append((QRegularExpression("//[^\n]*"), comment_format))
 
         # --- 2. Anahtar Kelimeler (Mor) ---
         keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#bb9af7")) # Tokyo Night Moru
+        keyword_format.setForeground(QColor(theme.color("purple")))
         keyword_format.setFontWeight(QFont.Weight.Bold)
-        
+
         keywords = [
             "\\bint\\b", "\\bchar\\b", "\\bvoid\\b", "\\bif\\b", "\\belse\\b",
             "\\bwhile\\b", "\\bfor\\b", "\\breturn\\b", "\\bstruct\\b", "\\binclude\\b"
@@ -31,13 +38,15 @@ class CppHighlighter(QSyntaxHighlighter):
 
         # --- 3. String İfadeler (Yeşil) ---
         string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#9ece6a")) # Tokyo Night Yeşili
+        string_format.setForeground(QColor(theme.color("green")))
         self.highlighting_rules.append((QRegularExpression("\".*\""), string_format))
 
         # --- 4. Rakamlar (Turuncu) ---
         number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#ff9e64")) # Tokyo Night Turuncusu
+        number_format.setForeground(QColor(theme.color("orange")))
         self.highlighting_rules.append((QRegularExpression("\\b[0-9]+\\b"), number_format))
+
+        self.rehighlight()
 
     def highlightBlock(self, text):
         """
@@ -70,19 +79,24 @@ class PythonHighlighter(QSyntaxHighlighter):
 
     def __init__(self, document):
         super().__init__(document)
+        self.rebuild()
+
+    def rebuild(self):
+        """ Kuralları geçerli paletle yeniden kurar. ':reload' bunu çağırır;
+        renkler QTextCharFormat içine kopyalandığı için palet değişince
+        kendiliğinden güncellenmiyorlar. """
         self.highlighting_rules = []
 
         # --- 1. Yorum Satırları (Soluk ve İtalik) ---
-        # Tokyo Night'ın soluk gri-mavi yorum rengi: #565f89
         comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#565f89"))
+        comment_format.setForeground(QColor(theme.color("fg_dim")))
         comment_format.setFontItalic(True)
         # '#' ile başlayıp satır sonuna kadar giden her şeyi yakalar
         self.highlighting_rules.append((QRegularExpression("#[^\n]*"), comment_format))
 
         # --- 2. Anahtar Kelimeler (Mor) ---
         keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#bb9af7")) # Tokyo Night Moru
+        keyword_format.setForeground(QColor(theme.color("purple")))
         keyword_format.setFontWeight(QFont.Weight.Bold)
         # Elle liste tutmak yerine stdlib'in kendi anahtar kelime listesini kullanıyoruz
         # (True/False/None de Python 3'te birer keyword olduğu için buraya dahil)
@@ -91,26 +105,28 @@ class PythonHighlighter(QSyntaxHighlighter):
 
         # --- 3. Built-in Fonksiyon/Tipler (Camgöbeği) ---
         builtin_format = QTextCharFormat()
-        builtin_format.setForeground(QColor("#7dcfff")) # Tokyo Night Camgöbeği
+        builtin_format.setForeground(QColor(theme.color("cyan")))
         for word in self.BUILTINS:
             self.highlighting_rules.append((QRegularExpression(f"\\b{word}\\b"), builtin_format))
 
         # --- 4. Decorator'lar (Sarı) ---
         decorator_format = QTextCharFormat()
-        decorator_format.setForeground(QColor("#e0af68")) # Tokyo Night Sarısı
+        decorator_format.setForeground(QColor(theme.color("yellow")))
         self.highlighting_rules.append((QRegularExpression(r"@[A-Za-z_][A-Za-z0-9_.]*"), decorator_format))
 
         # --- 5. Tek Satırlık String İfadeler (Yeşil) ---
         # Tek ve çift tırnağı, kaçış karakterlerini (\" , \') hesaba katarak yakalar
         self.string_format = QTextCharFormat()
-        self.string_format.setForeground(QColor("#9ece6a")) # Tokyo Night Yeşili
+        self.string_format.setForeground(QColor(theme.color("green")))
         self.highlighting_rules.append((QRegularExpression(r'"(?:\\.|[^"\\\n])*"'), self.string_format))
         self.highlighting_rules.append((QRegularExpression(r"'(?:\\.|[^'\\\n])*'"), self.string_format))
 
         # --- 6. Rakamlar (Turuncu) ---
         number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#ff9e64")) # Tokyo Night Turuncusu
+        number_format.setForeground(QColor(theme.color("orange")))
         self.highlighting_rules.append((QRegularExpression(r"\b[0-9]+(\.[0-9]+)?\b"), number_format))
+
+        self.rehighlight()
 
     def highlightBlock(self, text):
         """

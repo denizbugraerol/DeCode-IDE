@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import (QWidget, QLabel, QVBoxLayout, QScrollArea,
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 
+from ui import theme
+
 
 class FloatingList(QWidget):
     """ Kaydırılabilir, gölgeli, yüzen liste kutusu. Satır sayısı arttıkça
@@ -16,15 +18,13 @@ class FloatingList(QWidget):
     MAX_VISIBLE_ROWS = 8   # kutu bu satır sayısından daha fazla uzamaz
     PADDING = 4            # kutunun kenarı ile satırlar arasındaki boşluk
 
-    _ROW_STYLE = (
-        "color: #c0caf5; padding: 4px 12px; "
-        "font-family: 'Fira Code', 'Consolas', monospace; font-size: 13px;"
-    )
-    _SELECTED_ROW_STYLE = (
-        "background-color: #283457; color: #ffffff; "
-        "padding: 4px 12px; border-radius: 4px; "
-        "font-family: 'Fira Code', 'Consolas', monospace; font-size: 13px;"
-    )
+    def _row_style(self, selected):
+        """ Satır stili; renkler geçerli paletten. """
+        common = "padding: 4px 12px; font-family: 'Fira Code', 'Consolas', monospace; font-size: 13px;"
+        if selected:
+            return (f"background-color: {theme.color('selection')}; "
+                    f"color: {theme.color('fg_bright')}; border-radius: 4px; {common}")
+        return f"color: {theme.color('fg')}; {common}"
 
     def __init__(self):
         super().__init__()
@@ -84,7 +84,7 @@ class FloatingList(QWidget):
 
         for i, label in enumerate(labels):
             row = QLabel(label)
-            row.setStyleSheet(self._SELECTED_ROW_STYLE if i == selected_index else self._ROW_STYLE)
+            row.setStyleSheet(self._row_style(i == selected_index))
             self._layout.addWidget(row)
             self._rows.append(row)
             if i == selected_index:

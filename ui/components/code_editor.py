@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QTextCharFormat, QPainter, QColor
+from ui import theme
 from ui.components.syntax_highlighter import CppHighlighter, PythonHighlighter
 from core.search import find_all, find_next, replace_all
 from core.state_machine import StateMachine
@@ -69,11 +70,11 @@ class ModalEditor(QPlainTextEdit):
         self.cursorPositionChanged.connect(self.line_number_area.update)
         self._update_line_number_area_width(0)
 
-    def set_highlighter_for_file(self, file_path):
-        """ Dosya uzantısına göre uygun syntax highlighter'a geçer: '.py' için
-        PythonHighlighter, diğer her şey için (varsayılan) CppHighlighter. """
+    def set_highlighter_for_file(self, file_path, force=False):
+        """ Dosya uzantısına göre uygun highlighter'a geçer. force=True ise
+        aynı sınıf olsa bile yeniden kurar (':reload' tema değiştirdiğinde). """
         highlighter_cls = PythonHighlighter if file_path and file_path.lower().endswith(".py") else CppHighlighter
-        if isinstance(self.highlighter, highlighter_cls):
+        if isinstance(self.highlighter, highlighter_cls) and not force:
             return
         self.highlighter.setDocument(None)
         self.highlighter = highlighter_cls(self.document())
@@ -190,8 +191,8 @@ class ModalEditor(QPlainTextEdit):
         selections = []
         if self.search_pattern:
             highlight = QTextCharFormat()
-            highlight.setBackground(QColor("#3d59a1"))
-            highlight.setForeground(QColor("#ffffff"))
+            highlight.setBackground(QColor(theme.color("search")))
+            highlight.setForeground(QColor(theme.color("fg_bright")))
 
             for index in find_all(self.toPlainText(), self.search_pattern):
                 cursor = QTextCursor(self.document())
@@ -267,7 +268,7 @@ class ModalEditor(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event):
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), QColor("#16161e"))
+        painter.fillRect(event.rect(), QColor(theme.color("bg_dark")))
 
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
@@ -278,7 +279,7 @@ class ModalEditor(QPlainTextEdit):
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(block_number + 1)
-                color = QColor("#c0caf5") if block_number == current_line else QColor("#3b4261")
+                color = QColor(theme.color("fg")) if block_number == current_line else QColor(theme.color("gutter"))
                 painter.setPen(color)
                 painter.drawText(
                     0, top, self.line_number_area.width() - 6, self.fontMetrics().height(),

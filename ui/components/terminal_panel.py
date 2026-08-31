@@ -5,6 +5,7 @@ from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
 
 from core.terminal_process import TerminalProcess
+from ui import theme
 
 
 class TerminalView(QWidget):
@@ -22,16 +23,14 @@ class TerminalView(QWidget):
     PADDING = 6
 
     # pyte'ın Char.fg / Char.bg alanlarında dönebilecek isimli renkler
-    # (vt102 mirasından: "brown" aslında sarıdır) Tokyo Night paletine eşlenir.
-    _ANSI_COLORS = {
-        "black": "#1a1b26", "red": "#f7768e", "green": "#9ece6a", "brown": "#e0af68",
-        "blue": "#7aa2f7", "magenta": "#bb9af7", "cyan": "#7dcfff", "white": "#c0caf5",
-        "brightblack": "#414868", "brightred": "#f7768e", "brightgreen": "#9ece6a",
-        "brightbrown": "#e0af68", "brightblue": "#7aa2f7", "brightmagenta": "#bb9af7",
-        "brightcyan": "#7dcfff", "brightwhite": "#ffffff",
+    # (vt102 mirasından: "brown" aslında sarıdır) palet tokenlarına eşlenir.
+    _ANSI_TOKENS = {
+        "black": "bg", "red": "red", "green": "green", "brown": "yellow",
+        "blue": "blue", "magenta": "purple", "cyan": "cyan", "white": "fg",
+        "brightblack": "border", "brightred": "red", "brightgreen": "green",
+        "brightbrown": "yellow", "brightblue": "blue", "brightmagenta": "purple",
+        "brightcyan": "cyan", "brightwhite": "fg_bright",
     }
-    DEFAULT_FG = QColor("#c0caf5")
-    DEFAULT_BG = QColor("#16161e")
 
     _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
 
@@ -155,23 +154,30 @@ class TerminalView(QWidget):
         if not cursor.hidden and self.hasFocus():
             cx = self.PADDING + cursor.x * char_width
             cy = self.PADDING + cursor.y * line_height
-            painter.fillRect(cx, cy, char_width, line_height, self.DEFAULT_FG)
+            painter.fillRect(cx, cy, char_width, line_height, QColor(theme.color("fg")))
+
+    def _ansi_color(self, name, default_token):
+        """ pyte'ın verdiği renk adını (ya da 'default'ı) geçerli paletteki
+        tokene çevirir; boyama anında okunur ki ':reload' terminali de
+        güncellesin. """
+        token = self._ANSI_TOKENS.get(name)
+        return QColor(theme.color(token if token else default_token))
 
     def _resolve_colors(self, cell):
-        fg = self._resolve_one(cell.fg, self.DEFAULT_FG)
-        bg = self._resolve_one(cell.bg, self.DEFAULT_BG)
+        fg = self._resolve_one(cell.fg, "fg")
+        bg = self._resolve_one(cell.bg, "bg_dark")
         if cell.reverse:
             fg, bg = bg, fg
-        return fg, (None if bg == self.DEFAULT_BG else bg)
+        return fg, (None if bg == QColor(theme.color("bg_dark")) else bg)
 
-    def _resolve_one(self, value, default):
-        if value == "default":
-            return default
-        if value in self._ANSI_COLORS:
-            return QColor(self._ANSI_COLORS[value])
+    def _resolve_one(self, value, default_token):
+        # pyte, 256-renk/truecolor SGR kodlarını (ör. "\x1b[38;2;r;g;bm")
+        # 6 haneli hex string olarak verir; bu, hiçbir isimli ANSI rengiyle
+        # (en kısası 3 harf, ama hiçbiri 6 harf değil) çakışmaz, palet
+        # tokenlarının dışında kalır ve olduğu gibi çizilir.
         if len(value) == 6:
             return QColor(f"#{value}")
-        return default
+        return self._ansi_color(value, default_token)
 
 
 class TerminalPanel(QWidget):

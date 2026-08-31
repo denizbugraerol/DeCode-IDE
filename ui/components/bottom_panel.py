@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QLabel, QHBoxLayout,
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 
+from ui import theme
 from ui.components.floating_list import FloatingList
 
 
@@ -11,10 +12,12 @@ class StatusLine(QWidget):
     O anki modu (renkli rozet olarak), açık dosyanın adını ve imlecin
     satır:sütun konumunu gösterir. """
 
-    MODE_COLORS = {
-        "NORMAL": "#7aa2f7",   # Tokyo Night mavisi
-        "INSERT": "#9ece6a",   # Tokyo Night yeşili
-        "COMMAND": "#ff9e64",  # Tokyo Night turuncusu
+    # Mod -> palet tokeni. Gerçek renk set_mode'da okunuyor ki ':reload'
+    # paleti değiştirdiğinde rozet de değişsin.
+    MODE_TOKENS = {
+        "NORMAL": "blue",
+        "INSERT": "green",
+        "COMMAND": "orange",
     }
 
     def __init__(self):
@@ -41,9 +44,10 @@ class StatusLine(QWidget):
 
     def set_mode(self, mode):
         self.mode_label.setText(f" {mode} ")
-        color = self.MODE_COLORS.get(mode, self.MODE_COLORS["NORMAL"])
+        color = theme.color(self.MODE_TOKENS.get(mode, "blue"))
         self.mode_label.setStyleSheet(
-            f"background-color: {color}; color: #1a1b26; font-weight: bold; padding: 0 6px; font-size: 11px;"
+            f"background-color: {color}; color: {theme.color('bg')}; "
+            f"font-weight: bold; padding: 0 6px; font-size: 11px;"
         )
 
     def set_file(self, name):
