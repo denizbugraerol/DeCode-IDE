@@ -4,7 +4,7 @@ DeCode IDE'nin sprint kayıtları. Her sprint kendi dosyasında durur; biten
 sprintler arşiv olarak olduğu gibi kalır, yeni iş her zaman yeni bir dosyaya
 yazılır. Uzun vadeli plan için [Roadmap](../Roadmap.md)'e bakın.
 
-**Aktif sprint:** yok — [Sprint 07](sprint-07.md) ile Faz 2 kapandı.
+**Aktif sprint:** yok — son iş [Sprint 08](sprint-08.md).
 
 | Sprint | Tarih | Başlık | Durum |
 |---|---|---|---|
@@ -15,6 +15,7 @@ yazılır. Uzun vadeli plan için [Roadmap](../Roadmap.md)'e bakın.
 | [05](sprint-05.md) | 31 Ağu 2026 | Sekmeler, terminal, kaydırılabilir öneriler | Tamamlandı |
 | [06](sprint-06.md) | 31 Ağu 2026 | Telescope ve depo hijyeni | Tamamlandı |
 | [07](sprint-07.md) | 31 Ağu 2026 | Dosya içi arama, değiştirme, sembol atlama | Tamamlandı |
+| [08](sprint-08.md) | 31 Ağu 2026 | Kısayol eşitliği ve karşılama sayfası | Tamamlandı |
 
 ## Yeni sprint nasıl açılır
 

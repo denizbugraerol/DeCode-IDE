@@ -7,6 +7,7 @@ from ui.components.editor_tabs import EditorTabs
 from ui.components.bottom_panel import StatusLine, CommandLine, CommandSuggestions
 from ui.components.terminal_panel import TerminalPanel
 from ui.components.command_palette import CommandPalette
+from ui.components.welcome_page import WelcomePage
 from core.file_index import FileIndexWorker
 from core.symbols import extract_symbols
 from core.file_manager import FileManager
@@ -44,6 +45,10 @@ class IDEWindow(QMainWindow):
         # --- Sağ Panel: Sekmeli kod editörü + altında terminal paneli ---
         self.editor_tabs = EditorTabs()
 
+        # Son sekme kapanınca editörün yerini alan sayfa (uygulama kapanmaz).
+        self.welcome_page = WelcomePage()
+        self.welcome_page.hide()
+
         self.terminal_panel = TerminalPanel()
         self.terminal_panel.hide()  # ':term' çalıştırılana kadar gizli, layout'ta yer kaplamaz
 
@@ -55,6 +60,7 @@ class IDEWindow(QMainWindow):
         editor_layout.setContentsMargins(0, 0, 0, 0)
         editor_layout.setSpacing(0)
         editor_layout.addWidget(self.editor_tabs, 1)     # kalan tüm alanı alır
+        editor_layout.addWidget(self.welcome_page, 1)    # sekme yokken onun yerine geçer
         editor_layout.addWidget(self.terminal_panel, 0)  # sadece kendi sabit yüksekliğini alır
 
         # Bileşenleri Splitter'a ekliyoruz
@@ -94,25 +100,24 @@ class IDEWindow(QMainWindow):
         # Komut satırı (':w', ':b', ':ts', ':wq') sinyallerini dinle. Sinyaller
         # artık tek bir editörden değil, aktif sekmeden EditorTabs üzerinden
         # geliyor — arka plandaki sekmelerinkiler yok sayılıyor.
-        self.editor_tabs.save_requested.connect(self.save_file)
-        self.editor_tabs.sidebar_toggle_requested.connect(self.toggle_sidebar_focus)
-        self.editor_tabs.telescope_requested.connect(self.open_telescope_search)
-        self.editor_tabs.open_path_requested.connect(self._open_relative_path)
-        self.editor_tabs.symbol_search_requested.connect(self.open_symbol_search)
-        self.editor_tabs.change_directory_requested.connect(self._change_directory)
-        self.editor_tabs.quit_requested.connect(self.close)          # ':qa'
-        self.editor_tabs.last_tab_closed.connect(self.close)         # son ':q'
-        self.editor_tabs.terminal_toggle_requested.connect(self.terminal_panel.toggle)
-        self.editor_tabs.terminal_new_requested.connect(self.terminal_panel.open_new_tab)
-        self.editor_tabs.terminal_focus_requested.connect(self.terminal_panel.focus_terminal)
+        # Komut satırını barındıran iki konak (sekme yığını ve karşılama
+        # sayfası) aynı sinyal adlarını kullanıyor; ikisi de aynı tablodan
+        # bağlanıyor.
+        self._connect_modal_host(self.editor_tabs)
+        self._connect_modal_host(self.welcome_page)
         self.terminal_panel.return_focus_requested.connect(self.focus_editor)
 
-        # Mod, komut satırı, imleç konumu ve aktif sekme değiştikçe alt panelleri güncelle
-        self.editor_tabs.mode_changed.connect(self._on_mode_changed)
-        self.editor_tabs.command_line_changed.connect(self.command_line.set_text)
-        self.editor_tabs.command_suggestions_changed.connect(self._on_suggestions_changed)
+        # Sekme yönetimi editörlerde EditorTabs'in kendi içinde karşılanıyor;
+        # karşılama sayfasınınkiler buradan bağlanıyor.
+        self.welcome_page.tab_new_requested.connect(self.editor_tabs.new_tab)
+        self.welcome_page.tab_close_requested.connect(self.editor_tabs.close_current_tab)
+        self.welcome_page.tab_next_requested.connect(lambda: self.editor_tabs.switch_tab(1))
+        self.welcome_page.tab_prev_requested.connect(lambda: self.editor_tabs.switch_tab(-1))
+
+        # Yalnız sekmelerden gelenler: imleç konumu, aktif dosya ve sekme sayısı
         self.editor_tabs.cursor_position_changed.connect(self._update_cursor_position)
         self.editor_tabs.active_file_changed.connect(self._on_active_file_changed)
+        self.editor_tabs.tab_count_changed.connect(self._on_tab_count_changed)
 
         # Alt panellerin başlangıç durumunu aktif sekmeyle senkronla
         self._on_mode_changed(self.editor.current_mode)
@@ -125,9 +130,57 @@ class IDEWindow(QMainWindow):
     # --- Aktif sekmeye kısayollar: main_window'un geri kalanı tek bir
     # editörle konuşuyormuş gibi kalabilsin diye. ---
 
+    # Komut satırını barındıran bileşenlerin IDEWindow işleyicilerine bağlandığı
+    # tablo. ModalEditor ve WelcomePage aynı sinyal adlarını yaydığı için tek
+    # yerden kuruluyor.
+    def _connect_modal_host(self, host):
+        connections = {
+            "save_requested": self.save_file,
+            "sidebar_toggle_requested": self.toggle_sidebar_focus,
+            "telescope_requested": self.open_telescope_search,
+            "symbol_search_requested": self.open_symbol_search,
+            "open_path_requested": self._open_relative_path,
+            "change_directory_requested": self._change_directory,
+            "quit_requested": self.close,                      # ':qa'
+            "terminal_toggle_requested": self.terminal_panel.toggle,
+            "terminal_new_requested": self.terminal_panel.open_new_tab,
+            "terminal_focus_requested": self.terminal_panel.focus_terminal,
+            "mode_changed": self._on_mode_changed,
+            "command_line_changed": self.command_line.set_text,
+            "command_suggestions_changed": self._on_suggestions_changed,
+        }
+        for name, handler in connections.items():
+            getattr(host, name).connect(handler)
+
     @property
     def editor(self):
         return self.editor_tabs.current_editor()
+
+    @property
+    def modal_host(self):
+        """ O an komut satırını barındıran bileşen: sekme varsa aktif editör,
+        yoksa karşılama sayfası. Mod/öneri kontrolleri bunu kullanır. """
+        editor = self.editor_tabs.current_editor()
+        return editor if editor is not None else self.welcome_page
+
+    def _on_tab_count_changed(self, count):
+        """ Sekme sayısı değişince editör yığını ile karşılama sayfası arasında
+        geçiş yapar. Son sekme kapansa bile uygulama kapanmıyor — çıkış ':qa'
+        (ya da pencere kapatma düğmesi) ile. """
+        empty = count == 0
+        self.editor_tabs.setVisible(not empty)
+        self.welcome_page.setVisible(empty)
+
+        host = self.modal_host
+        if empty:
+            self.setWindowTitle("DeCode IDE - [Sekme yok]")
+            self.status_line.set_file("[Sekme yok]")
+            self.status_line.set_position(None, None)
+        else:
+            self._update_cursor_position()
+
+        self._on_mode_changed(host.current_mode)
+        host.setFocus()
 
     @property
     def current_file_path(self):
@@ -140,9 +193,9 @@ class IDEWindow(QMainWindow):
         return os.path.basename(path) if path else "[No Name]"
 
     def focus_editor(self):
-        editor = self.editor
-        if editor is not None:
-            editor.setFocus()
+        """ Odağı komut satırını barındıran bileşene verir (sekme yoksa
+        karşılama sayfasına). """
+        self.modal_host.setFocus()
 
     def _on_active_file_changed(self, title):
         """ Aktif sekme (ya da onun kaydedilmemiş değişiklik durumu) değişince
@@ -168,8 +221,7 @@ class IDEWindow(QMainWindow):
         Tab/Shift+Tab ile gezinirken) öneri kutusunu günceller. """
         self.command_suggestions.set_suggestions(matches, selected_index)
 
-        editor = self.editor
-        if matches and editor is not None and editor.current_mode == "COMMAND":
+        if matches and self.modal_host.current_mode == "COMMAND":
             # Liste boyutu (ör. 9 satırdan 2'ye) küçüldüğünde Qt'nin layout
             # önbelleği aynı olay döngüsü turunda doğru boyutu vermiyor;
             # boyutlandırmayı bir sonraki tur'a erteliyoruz.
@@ -178,8 +230,7 @@ class IDEWindow(QMainWindow):
             self.command_suggestions.hide()
 
     def _show_command_suggestions(self):
-        editor = self.editor
-        if editor is None or editor.current_mode != "COMMAND" or not self.command_suggestions.has_suggestions():
+        if self.modal_host.current_mode != "COMMAND" or not self.command_suggestions.has_suggestions():
             return
 
         # Kutuya, komut satırının altı ile statusline arasında kalan boşluk
@@ -280,7 +331,7 @@ class IDEWindow(QMainWindow):
     def toggle_sidebar_focus(self):
             """ ':b' komutuyla odak Sidebar ile Editor arasında gidip gelir. """
             if self.sidebar.hasFocus():
-                self.editor.setFocus()
+                self.focus_editor()
             else:
                 self.sidebar.setFocus()
 
@@ -406,6 +457,24 @@ class IDEWindow(QMainWindow):
                 background-color: #1f2335;
                 border: 1px solid #414868;
                 border-radius: 8px;
+            }
+            QWidget#welcomePage { background-color: #1a1b26; }
+            QLabel#welcomeTitle {
+                color: #7aa2f7;
+                font-family: 'Fira Code', 'Consolas', monospace;
+                font-size: 28px;
+                font-weight: bold;
+            }
+            QLabel#welcomeSubtitle {
+                color: #565f89;
+                font-family: 'Fira Code', 'Consolas', monospace;
+                font-size: 13px;
+            }
+            QLabel#welcomeHints {
+                color: #c0caf5;
+                font-family: 'Fira Code', 'Consolas', monospace;
+                font-size: 13px;
+                line-height: 150%;
             }
             QWidget#commandPalette { background-color: transparent; }
             QLabel#palettePrompt {

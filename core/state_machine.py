@@ -25,7 +25,7 @@ class StateMachine:
         "y": "kopyala",
         "p": "yapıştır",
         "wq": "kaydet ve sekmeyi kapat",
-        "q": "sekmeyi kapat (son sekmeyse çıkar)",
+        "q": "sekmeyi kapat",
         "qa": "her şeyi kapat ve çık",
         "wqa": "kaydet, her şeyi kapat ve çık",
         "ts": "bulanık dosya arama",
@@ -112,9 +112,16 @@ class StateMachine:
             return self._path_matches_for("cd", prefix[3:], include_files=False)
         if prefix.startswith("openfile "):
             return self._path_matches_for("openfile", prefix[9:], include_files=True)
-        names = [c for c in self.KNOWN_COMMANDS if c.startswith(prefix)] if prefix else list(self.KNOWN_COMMANDS)
+        available = self._available_commands()
+        names = [c for c in available if c.startswith(prefix)] if prefix else list(available)
         names.sort()
         return [(name, self.COMMAND_DESCRIPTIONS.get(name, "")) for name in names]
+
+    def _available_commands(self):
+        """ Konağın desteklediği komutlar. ModalEditor hepsini destekler;
+        karşılama sayfası (sekme yokken) yalnızca tampon gerektirmeyenleri —
+        öneri listesinde çalışmayan komut görünmesin diye. """
+        return getattr(self.editor, "available_commands", self.KNOWN_COMMANDS)
 
     def _path_matches_for(self, command, path_part, include_files):
         """ ':cd' / ':openfile' için shell tarzı yol tamamlaması. Yazılanı
@@ -277,9 +284,5 @@ class StateMachine:
         print("MOD: INSERT")
 
     def _delete_current_line(self):
-        """ ':d' komutu için o anki satırı siler """
-        cursor = self.editor.textCursor()
-        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
-        cursor.removeSelectedText()
-        cursor.deleteChar()
-        self.editor.setTextCursor(cursor)
+        """ ':d' — asıl iş editörde; burada yalnızca dağıtım yapılıyor. """
+        self.editor.delete_current_line()

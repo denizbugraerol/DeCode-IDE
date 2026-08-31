@@ -86,17 +86,19 @@ class ModalEditor(QPlainTextEdit):
         Klavyeden basılan her tuş buraya düşer.
         Tuşları ekrana basmadan önce mod kontrolünden geçiririz.
         """
-        # Sekme geçişi ve terminale odaklanma her modda çalışır; bu yüzden
-        # mod dağıtımından önce bakılır.
+        # Alt+Shift ailesi her modda çalışır; bu yüzden mod dağıtımından önce
+        # bakılır. Terminaldeki (TerminalView) eşleme ile birebir aynı tuşlar:
+        # komut, odağın bulunduğu yere — burada editör sekmelerine — uygulanır.
         if event.modifiers() == self._PANEL_MODIFIERS:
-            if event.key() == Qt.Key.Key_Right:
-                self.tab_next_requested.emit()
-                return
-            if event.key() == Qt.Key.Key_Left:
-                self.tab_prev_requested.emit()
-                return
-            if event.key() == Qt.Key.Key_T:
-                self.terminal_focus_requested.emit()
+            signal = {
+                Qt.Key.Key_T: self.terminal_focus_requested,
+                Qt.Key.Key_N: self.tab_new_requested,
+                Qt.Key.Key_W: self.tab_close_requested,
+                Qt.Key.Key_Right: self.tab_next_requested,
+                Qt.Key.Key_Left: self.tab_prev_requested,
+            }.get(event.key())
+            if signal is not None:
+                signal.emit()
                 return
 
         if self.current_mode == "NORMAL":
@@ -223,6 +225,14 @@ class ModalEditor(QPlainTextEdit):
         self.setTextCursor(cursor)
         self._highlight_matches()
         return count
+
+    def delete_current_line(self):
+        """ ':d' — imlecin bulunduğu satırı siler. """
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
+        cursor.removeSelectedText()
+        cursor.deleteChar()
+        self.setTextCursor(cursor)
 
     def goto_line(self, line_number):
         """ ':42' ve ':sym' ile seçilen sembol için: 1 tabanlı satıra atlar. """

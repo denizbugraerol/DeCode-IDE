@@ -33,7 +33,7 @@ class EditorTabs(QTabWidget):
 
     # --- Sekme durumu ---
     active_file_changed = pyqtSignal(str)     # statusline/pencere başlığı için
-    last_tab_closed = pyqtSignal()            # son sekme de kapandı -> çık
+    tab_count_changed = pyqtSignal(int)       # 0 olunca IDEWindow karşılama sayfasına geçer
 
     PLACEHOLDER = "Normal Mod: Yazmak için 'i', komut için ':' tuşuna basın. Çıkmak için 'Esc'."
     UNTITLED = "[No Name]"
@@ -69,6 +69,7 @@ class EditorTabs(QTabWidget):
         index = self.addTab(editor, self._title_for(editor))
         self.setCurrentIndex(index)
         editor.setFocus()
+        self.tab_count_changed.emit(self.count())
         return editor
 
     def open_file(self, file_path, content):
@@ -117,9 +118,10 @@ class EditorTabs(QTabWidget):
         # gelebiliyor; C++ nesnesi olay döngüsü turu bitene kadar yaşasın.
         editor.deleteLater()
 
-        if self.count() == 0:
-            self.last_tab_closed.emit()
-        else:
+        # Son sekme de kapansa uygulama kapanmaz: IDEWindow karşılama
+        # sayfasına geçer (çıkış için ':qa' var).
+        self.tab_count_changed.emit(self.count())
+        if self.count():
             self.current_editor().setFocus()
 
     def switch_tab(self, step):

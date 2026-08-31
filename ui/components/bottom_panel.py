@@ -50,7 +50,9 @@ class StatusLine(QWidget):
         self.file_label.setText(name or "[No Name]")
 
     def set_position(self, line, col):
-        self.position_label.setText(f"{line}:{col}")
+        """ Satır/sütun; sekme yokken (karşılama sayfası) None verilip boş
+        bırakılır. """
+        self.position_label.setText(f"{line}:{col}" if line is not None else "")
 
 
 class CommandLine(QLabel):
