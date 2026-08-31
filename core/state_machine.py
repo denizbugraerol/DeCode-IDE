@@ -11,17 +11,28 @@ class StateMachine:
     # Bilinen komutlar ve öneri listesinde gösterilecek açıklamaları.
     # Yeni bir komut eklerken burayı ve _execute_command_line'daki match'i
     # birlikte güncelleyin.
-    KNOWN_COMMANDS = ("d", "w", "b", "y", "p", "wq", "q", "ts", "cd")
+    KNOWN_COMMANDS = (
+        "d", "w", "b", "y", "p", "wq", "q", "qa", "wqa", "ts", "cd",
+        "term", "termnew", "tabnew", "tabclose", "tabnext", "tabprev",
+    )
     COMMAND_DESCRIPTIONS = {
         "d": "geçerli satırı sil",
         "w": "dosyayı kaydet",
         "b": "sidebar/editör arasında odak değiştir",
         "y": "kopyala",
         "p": "yapıştır",
-        "wq": "kaydet ve çık",
-        "q": "çık",
+        "wq": "kaydet ve sekmeyi kapat",
+        "q": "sekmeyi kapat (son sekmeyse çıkar)",
+        "qa": "her şeyi kapat ve çık",
+        "wqa": "kaydet, her şeyi kapat ve çık",
         "ts": "telescope arama (yakında)",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
+        "term": "terminali aç/kapat",
+        "termnew": "yeni terminal sekmesi",
+        "tabnew": "yeni sekme",
+        "tabclose": "sekmeyi kapat",
+        "tabnext": "sonraki sekme",
+        "tabprev": "önceki sekme",
     }
 
     def __init__(self, editor):
@@ -170,12 +181,29 @@ class StateMachine:
                 case "p":
                     self.editor.paste()
                 case "wq":
+                    # Gerçek Vim'deki gibi: kaydet ve pencereyi (burada sekmeyi)
+                    # kapat. Son sekme de kapanırsa uygulamadan çıkılır.
+                    self.editor.save_requested.emit()
+                    self.editor.tab_close_requested.emit()
+                case "q" | "tabclose":
+                    self.editor.tab_close_requested.emit()
+                case "qa":
+                    self.editor.quit_requested.emit()
+                case "wqa":
                     self.editor.save_requested.emit()
                     self.editor.quit_requested.emit()
-                case "q":
-                    self.editor.quit_requested.emit()
+                case "tabnew":
+                    self.editor.tab_new_requested.emit()
+                case "tabnext":
+                    self.editor.tab_next_requested.emit()
+                case "tabprev":
+                    self.editor.tab_prev_requested.emit()
                 case "ts":
                     self.editor.telescope_requested.emit()
+                case "term":
+                    self.editor.terminal_toggle_requested.emit()
+                case "termnew":
+                    self.editor.terminal_new_requested.emit()
                 # bilinmeyen komut: sessizce yok sayılır
 
         self._exit_command_line()

@@ -27,6 +27,13 @@ class ModalEditor(QPlainTextEdit):
     telescope_requested = pyqtSignal()
     change_directory_requested = pyqtSignal(str)
     quit_requested = pyqtSignal()
+    terminal_toggle_requested = pyqtSignal()
+    terminal_new_requested = pyqtSignal()
+    terminal_focus_requested = pyqtSignal()
+    tab_new_requested = pyqtSignal()
+    tab_close_requested = pyqtSignal()
+    tab_next_requested = pyqtSignal()
+    tab_prev_requested = pyqtSignal()
     mode_changed = pyqtSignal(str)
     command_line_changed = pyqtSignal(str)
     command_suggestions_changed = pyqtSignal(list, int)
@@ -34,6 +41,10 @@ class ModalEditor(QPlainTextEdit):
     def __init__(self):
         super().__init__()
         self.current_mode = "NORMAL"  # Uygulama başlarken Normal modda başlasın
+
+        # Bu sekmenin hangi dosyayı gösterdiği (henüz kaydedilmemişse None).
+        # Sekme başlığı, ':w' ve 'zaten açık mı' kontrolü bunu kullanır.
+        self.file_path = None
 
         # İmleç genişliğini ayarlayarak modları görselleştiriyoruz
         self.cursor_width_insert = 1
@@ -61,11 +72,27 @@ class ModalEditor(QPlainTextEdit):
         self.highlighter.setDocument(None)
         self.highlighter = highlighter_cls(self.document())
 
+    # Terminal panelindekiyle aynı aile: Alt+Shift tabanlı sekme/odak kısayolları
+    _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+
     def keyPressEvent(self, event):
         """
         Klavyeden basılan her tuş buraya düşer.
         Tuşları ekrana basmadan önce mod kontrolünden geçiririz.
         """
+        # Sekme geçişi ve terminale odaklanma her modda çalışır; bu yüzden
+        # mod dağıtımından önce bakılır.
+        if event.modifiers() == self._PANEL_MODIFIERS:
+            if event.key() == Qt.Key.Key_Right:
+                self.tab_next_requested.emit()
+                return
+            if event.key() == Qt.Key.Key_Left:
+                self.tab_prev_requested.emit()
+                return
+            if event.key() == Qt.Key.Key_T:
+                self.terminal_focus_requested.emit()
+                return
+
         if self.current_mode == "NORMAL":
             self.handle_normal_mode(event)
         elif self.current_mode == "INSERT":
