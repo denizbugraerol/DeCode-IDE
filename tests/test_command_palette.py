@@ -63,3 +63,20 @@ def test_eslesme_yoksa_payload_none(qapp):
     palet = _palet(qapp)
     QTest.keyClicks(palet, "zzzz")
     assert palet.current_payload() is None
+
+
+def test_palet_kapaninca_odak_editore_doner(pencere, tmp_path, monkeypatch):
+    """ Palet odağı kendisi alıyor; kapanınca editöre geri vermezse kullanıcı
+    tuşları hiçbir yere gitmez. FloatingList satırlarını temizlerken
+    setParent(None) kullanmak, satırı geçici üst düzey pencereye çevirip Qt'nin
+    aktif pencere defterini bozuyordu — bu test onun da regresyonu. """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "dosya.py").write_text("x = 1\n")
+    pencere.show()
+
+    pencere.open_telescope_search()
+    assert pencere.focusWidget() is pencere.command_palette
+
+    QTest.keyClick(pencere.command_palette, Qt.Key.Key_Escape)
+    assert not pencere.command_palette.isVisible()
+    assert pencere.focusWidget() is pencere.editor

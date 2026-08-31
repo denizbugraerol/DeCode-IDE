@@ -99,16 +99,12 @@ def test_openfile_komutu_open_path_requested_yayinlar(qapp, tmp_path, monkeypatc
     assert yollar == ["dosya.py"]
 
 
-def test_openfile_olmayan_yol_sekme_acmaz(qapp, tmp_path, monkeypatch, capsys):
+def test_openfile_olmayan_yol_sekme_acmaz(pencere, tmp_path, monkeypatch, capsys):
     """ Hatalı yol çökmemeli ve yeni sekme açmamalı; hata konsola yazılır. """
-    from ui.main_window import IDEWindow
-
     monkeypatch.chdir(tmp_path)
-    pencere = IDEWindow()
     onceki_sekme = pencere.editor_tabs.count()
 
     pencere._open_relative_path("yok/olmayan.py")
 
     assert pencere.editor_tabs.count() == onceki_sekme
     assert "bulunamadı" in capsys.readouterr().out
-    pencere.terminal_panel.shutdown()

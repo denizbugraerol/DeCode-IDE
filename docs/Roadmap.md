@@ -10,7 +10,7 @@ paletine sadık kalır**.
 
 Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) bakın.
 
-## Bugünkü durum — v0.1
+## Bugünkü durum — v0.2
 
 Çalışan özellikler:
 
@@ -20,7 +20,12 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
   komutlar, Tab/Shift+Tab tamamlama, kaydırılabilir öneri listesi
   ([Sprint 03](sprint/sprint-03.md), [05](sprint/sprint-05.md))
 - **Komutlar** — `i`, `:w`, `:d`, `:b`, `:y`, `:p`, `:cd <yol>`, `:42`, `:q`, `:wq`,
-  `:qa`, `:wqa`, `:tabnew`, `:tabclose`, `:tabnext`, `:tabprev`, `:term`, `:termnew`
+  `:qa`, `:wqa`, `:tabnew`, `:tabclose`, `:tabnext`, `:tabprev`, `:term`, `:termnew`,
+  `:ts`, `:find <desen>`, `:replace eski yeni`, `:openfile <yol>`, `:sym`
+- **Arama ve gezinme** — bulanık dosya arama paleti (`:ts`), dosya içi arama
+  (`:find` + çıplak `n`/`N`, tüm eşleşmeler vurgulu, Esc temizler), değiştirme
+  (`:replace`), yol tamamlamalı dosya açma (`:openfile`) ve sembol paleti
+  (`:sym`) ([Sprint 06](sprint/sprint-06.md), [07](sprint/sprint-07.md))
 - **Çoklu sekme** — her sekmenin kendi editörü ve modu, `●` ile kaydedilmemiş
   değişiklik göstergesi ([Sprint 05](sprint/sprint-05.md))
 - **Gömülü terminal** — gerçek PTY üzerinde `pyte` ile çizilen, sekmeli shell
@@ -28,25 +33,29 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
 - **Dosya ağacı** — CWD'ye köklenmiş sidebar, `:cd` ile kök değiştirme, Esc ile
   odağı editöre döndürme ([Sprint 01](sprint/sprint-01.md), [02](sprint/sprint-02.md))
 - **Sözdizimi renklendirme** — C/C++ ve Python (çok satırlı docstring dahil)
+- **Test altyapısı** — pytest, `QT_QPA_PLATFORM=offscreen` ile ekransız çalışan
+  60 test ([Sprint 06](sprint/sprint-06.md))
 
-Henüz yok: dosya arama, dosya içi arama/değiştirme, Vim hareket komutları,
-ayar dosyası, PlatformIO/seri monitör entegrasyonu, test altyapısı.
+Henüz yok: Vim hareket komutları, VISUAL mod, ayar dosyası, oturum geri yükleme,
+PlatformIO/seri monitör entegrasyonu, lint.
 
-## Faz 2 — Arama ve gezinme (sıradaki)
+## Faz 2 — Arama ve gezinme (tamamlandı)
 
-Bugün bir dosyayı açmanın tek yolu sidebar'da tıklamak; proje büyüdükçe bu
-yavaşlıyor. Faz 2'nin amacı klavyeyle hedefe gitmek.
+Amaç klavyeyle hedefe gitmekti; dosya açmanın tek yolu artık sidebar'da
+tıklamak değil.
 
 - **Telescope / bulanık dosya arama (`:ts`)** — `ui/components/command_palette.py`
-  bugün boş bir yer tutucu; `IDEWindow.open_telescope_search` yalnızca `print`
-  ediyor. `CommandSuggestions`'daki yüzen liste deseni yeniden kullanılacak.
-- **Dosya içi arama** (`/` ile ileri, `n`/`N` ile sonraki eşleşme) ve
-  **değiştirme** (`:s/eski/yeni/`) — `StateMachine` üzerinden.
-- **`:e <yol>`** ile doğrudan dosya açma; `:cd` tamamlamasındaki yol
-  tamamlaması (`_path_matches_for`) burada da kullanılacak.
-- **Sembol/satır atlama** — açık dosyadaki fonksiyon/sınıf tanımlarına atlama.
+  gerçek palet oldu; kutu `FloatingList` olarak `CommandSuggestions`'la
+  paylaşılıyor, dosya listesi arka planda taranıyor.
+- **Dosya içi arama** (`:find <desen>`, çıplak `n`/`N` ile sonraki/önceki
+  eşleşme, tüm eşleşmeler vurgulu, NORMAL modda Esc vurguyu temizler) ve
+  **değiştirme** (`:replace eski yeni`) — çekirdeği `core/search.py`'de.
+- **`:openfile <yol>`** ile doğrudan dosya açma; `_path_matches_for` artık hem
+  `:cd` (yalnız dizin) hem `:openfile` (dosya dahil) tamamlamasını üretiyor.
+- **Sembol atlama (`:sym`)** — açık dosyadaki fonksiyon/sınıf tanımlarına
+  atlama; `core/symbols.py`.
 
-## Faz 3 — Editör olgunluğu
+## Faz 3 — Editör olgunluğu (sıradaki)
 
 Editörün "günlük sürücü" olabilmesi için eksik olan Vim refleksleri ve
 kişiselleştirme.
@@ -86,10 +95,12 @@ yer tutuyor.
 
 | Konu | Durum | Nerede |
 |---|---|---|
-| `__pycache__` deposu kirletiyor | 11 `.pyc` dosyası takip ediliyor; `.gitignore`'da kural yok | `.gitignore` |
-| Test ve lint altyapısı yok | Doğrulama şimdilik elle / offscreen betiklerle | — |
-| `CLAUDE.md` güncel değil | Tuş tamponu modelini anlatıyor; sekmeler ve terminal yok | `CLAUDE.md` |
-| Boş yer tutucular | `command_palette.py`, `pio_cli.py`, `serial_reader.py` | Faz 2 ve Faz 4 |
+| `__pycache__` deposu kirletiyor | Çözüldü ([Sprint 06](sprint/sprint-06.md)): kural eklendi, 14 `.pyc` takipten çıkarıldı | `.gitignore` |
+| Lint altyapısı yok | Test var (60 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
+| Boş yer tutucular | `pio_cli.py`, `serial_reader.py` | Faz 4 |
+| Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
+| C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
 | Tema kodda sabit | Renkler `IDEWindow._apply_theme` içinde string olarak | Faz 3 |
 
 ## Sürüm kilometre taşları
@@ -98,8 +109,8 @@ Tarih verilmiyor; sıra ve çıkış kriteri veriliyor.
 
 | Sürüm | Kapsam | Çıkış kriteri |
 |---|---|---|
-| **v0.1** (bugün) | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride |
-| **v0.2** | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor |
+| **v0.1** | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride |
+| **v0.2** (bugün) | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor |
 | **v0.3** | Faz 3 | Temel Vim hareketleri + ayar dosyası; oturum geri yükleniyor |
 | **v0.4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla; seri monitör açılıyor |
 | **v1.0** | Faz 5 | Kurulabilir paket ve belgelenmiş komut/kısayol referansı |

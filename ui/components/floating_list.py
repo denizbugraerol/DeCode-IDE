@@ -72,8 +72,11 @@ class FloatingList(QWidget):
             item = self._layout.takeAt(0)
             if item.widget():
                 # Layout'tan çıkarılan satır, silinmesi (deleteLater) sıraya
-                # girene kadar eski yerinde görünmesin diye ebeveyninden koparılır.
-                item.widget().setParent(None)
+                # girene kadar eski yerinde görünmesin diye gizlenir.
+                # (setParent(None) da işe yarar ama satırı geçici olarak üst
+                # düzey bir pencereye çevirir; Qt'nin aktif pencere defterini
+                # karıştırıyor.)
+                item.widget().hide()
                 item.widget().deleteLater()
 
         self._rows = []

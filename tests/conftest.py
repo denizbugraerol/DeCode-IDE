@@ -15,3 +15,21 @@ def qapp():
     """ Tüm test oturumu için tek bir QApplication. Qt aynı süreçte ikinci bir
     örneğe izin vermediği için oturum kapsamlı. """
     return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture
+def pencere(qapp):
+    """ Kendi kendini toplayan bir IDEWindow.
+
+    Terminal PTY'si kapatılıp widget ağacı olay döngüsü içinde siliniyor:
+    aynı oturumda birden fazla pencere çöp toplayıcıya kalırsa Qt yıkım
+    sırasında (QObjectPrivate::deleteChildren) çakılıyor. """
+    from ui.main_window import IDEWindow
+
+    window = IDEWindow()
+    yield window
+
+    window.terminal_panel.shutdown()
+    window.close()
+    window.deleteLater()
+    qapp.processEvents()

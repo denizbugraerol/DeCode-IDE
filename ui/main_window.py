@@ -21,7 +21,7 @@ class IDEWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        self.setWindowTitle("DeCode IDE - v0.1")
+        self.setWindowTitle("DeCode IDE - v0.2")
         self.setGeometry(100, 100, 1200, 800)
 
         # Merkez widget ve ana layout
