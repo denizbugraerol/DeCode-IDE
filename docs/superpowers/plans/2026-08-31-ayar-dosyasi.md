@@ -1016,6 +1016,7 @@ git commit -m "refactor: kalan renkleri de ui/theme paletine taşı"
 ```python
 """ Ayarların pencereye uygulanması. """
 import core.config as config
+import ui.theme as theme
 from ui.main_window import IDEWindow
 
 
@@ -1031,6 +1032,8 @@ def test_renk_ayari_stylesheete_gecer(qapp):
     try:
         assert "#11111b" in pencere.styleSheet()
     finally:
+        # Palet modül düzeyinde global; sıfırlanmazsa sonraki testlere sızar.
+        theme.set_palette(dict(theme.DEFAULT_PALETTE))
         pencere.terminal_panel.shutdown()
         pencere.close()
         pencere.deleteLater()
@@ -1050,6 +1053,7 @@ def test_font_ayari_stylesheete_gecer(qapp):
         assert "font-size: 20px" in qss     # editör
         assert "font-size: 16px" in qss     # statusline (-4)
     finally:
+        theme.set_palette(dict(theme.DEFAULT_PALETTE))
         pencere.terminal_panel.shutdown()
         pencere.close()
         pencere.deleteLater()
@@ -1064,6 +1068,7 @@ def test_bilinmeyen_renk_tokeni_uyarir(qapp, capsys):
     try:
         assert "pembe" in capsys.readouterr().out
     finally:
+        theme.set_palette(dict(theme.DEFAULT_PALETTE))
         pencere.terminal_panel.shutdown()
         pencere.close()
         pencere.deleteLater()
