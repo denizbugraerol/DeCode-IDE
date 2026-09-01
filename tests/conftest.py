@@ -1,6 +1,7 @@
 """ Testler için ortak kurulum. Qt'yi başsız (offscreen) çalıştırır: CI'da ya
 da SSH oturumunda ekran olmadan da testler geçmeli. """
 import os
+import time
 
 # QApplication oluşturulmadan ÖNCE ayarlanmalı; bu yüzden import'ların en
 # üstünde duruyor (main.py'deki wayland;xcb ipucunun test karşılığı).
@@ -39,3 +40,19 @@ def pencere(qapp):
     window.close()
     window.deleteLater()
     qapp.processEvents()
+
+
+@pytest.fixture
+def bekle(qapp):
+    """ PTY testleri için: koşul sağlanana kadar Qt olay döngüsünü döndürür.
+    QSocketNotifier yalnız olay döngüsü dönerken tetiklenir — süreç çıktısını
+    düz bir 'sleep' ile beklemek işe yaramaz, hiçbir zaman gelmez. """
+    def _bekle(kosul, zaman_asimi=5.0):
+        son = time.monotonic() + zaman_asimi
+        while time.monotonic() < son:
+            qapp.processEvents()
+            if kosul():
+                return True
+            time.sleep(0.005)
+        return bool(kosul())
+    return _bekle

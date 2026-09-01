@@ -32,11 +32,20 @@ class TerminalProcess(QObject):
     durumunu yönetir. """
 
     output_ready = pyqtSignal()   # pyte ekranı güncellendi -> panel repaint etsin
-    finished = pyqtSignal()       # child shell süreci sona erdi
+    finished = pyqtSignal()       # child süreç sona erdi
+    exited = pyqtSignal(int)      # child sürecin çıkış kodu
 
-    def __init__(self, rows=9, cols=80, parent=None):
+    # DİKKAT: 'finished' ARGÜMANSIZ kalmalı. TerminalView onu doğrudan
+    # QWidget.update'e bağlıyor; sinyale int eklenirse Qt update(int)
+    # overload'ı arar ve bağlantı sessizce kopar (terminal çizmeyi bırakır).
+    # Çıkış kodu bu yüzden ayrı 'exited' sinyaliyle taşınıyor.
+
+    def __init__(self, rows=9, cols=80, argv=None, cwd=None, parent=None):
         super().__init__(parent)
         self.rows, self.cols = rows, cols
+        self.argv = argv        # None -> kullanıcının login shell'i (':term')
+        self.cwd = cwd          # None -> sürecin mevcut çalışma dizini
+        self.exit_code = None
         self._pid = None
         self._master_fd = None
         self._notifier = None
@@ -48,23 +57,34 @@ class TerminalProcess(QObject):
 
     def start(self):
         """ pty.fork() ile gerçek bir sözde-terminal (pseudo-terminal) üzerinde
-        kullanıcının kendi shell'ini (SHELL ortam değişkeni, yoksa /bin/bash)
-        login shell olarak başlatır. """
+        bir süreç başlatır: argv verilmemişse kullanıcının kendi shell'ini
+        (SHELL ortam değişkeni, yoksa /bin/bash) login shell olarak, verilmişse
+        doğrudan o komutu (':pio build' gibi). """
         if self.is_running():
             return
-        shell = os.environ.get("SHELL", "/bin/bash")
         env = dict(os.environ)
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
 
+        if self.argv is None:
+            shell = os.environ.get("SHELL", "/bin/bash")
+            argv = [shell, "-l"]
+        else:
+            argv = list(self.argv)
+
+        self.exit_code = None
         pid, master_fd = pty.fork()
         if pid == 0:
             # Child süreç: pty.fork() setsid + TIOCSCTTY + 0/1/2 dup işini
-            # zaten kendi içinde halletti. Burada tek iş shell'i exec etmek.
+            # zaten kendi içinde halletti. Burada tek iş exec etmek.
             try:
-                os.execvpe(shell, [shell, "-l"], env)
+                if self.cwd:
+                    os.chdir(self.cwd)
+                os.execvpe(argv[0], argv, env)
             except Exception:
-                os._exit(1)
+                # 127: kabuk geleneğinde "komut bulunamadı"; sekme başlığında
+                # '✗ (127)' olarak görünsün diye 1 değil bu.
+                os._exit(127)
 
         # --- Parent süreç devam ediyor ---
         self._pid = pid
@@ -89,9 +109,15 @@ class TerminalProcess(QObject):
         # process group'a SIGWINCH gönderir; elle sinyal yollamaya gerek yok.
 
     def resize(self, rows, cols):
-        if not self.is_running() or (rows == self.rows and cols == self.cols):
+        """ Ölçüyü her hâlükârda saklar. PTY boyutu start() sırasında
+        kurulduğu için, süreç henüz başlamamışken gelen ölçü ATILIRSA komut
+        sekmesi 80 sütunla başlar ve 'pio'nun ilk çıktısı yanlış sarmalanır;
+        bu yüzden erken dönüş yalnız ioctl/screen kısmını atlıyor. """
+        if rows == self.rows and cols == self.cols:
             return
         self.rows, self.cols = rows, cols
+        if not self.is_running():
+            return
         # DİKKAT: Screen() constructor'ı (columns, lines) sırasında ama
         # resize() metodu (lines, columns) sırasında bekliyor.
         self.screen.resize(lines=rows, columns=cols)
@@ -123,13 +149,22 @@ class TerminalProcess(QObject):
         self.output_ready.emit()
 
     def _handle_child_exit(self):
+        if self._pid is None:
+            return          # close() zaten temizlemiş
         if self._notifier:
             self._notifier.setEnabled(False)
         try:
-            os.waitpid(self._pid, os.WNOHANG)
+            # WNOHANG DEĞİL: PTY'de EOF ile çocuğun reap edilebilir hâle
+            # gelmesi arasında yarış var, WNOHANG (0, 0) dönüp çıkış kodunu
+            # kaçırabiliyor. EOF geldiyse çocuk zaten ölmek üzere olduğundan
+            # bloklayan bekleme pratikte anında dönüyor.
+            _pid, status = os.waitpid(self._pid, 0)
+            # Sinyalle ölen süreçte (ör. Ctrl+C -> SIGINT) negatif değer döner.
+            self.exit_code = os.waitstatus_to_exitcode(status)
         except (ChildProcessError, OSError):
-            pass
+            self.exit_code = -1
         self.finished.emit()
+        self.exited.emit(self.exit_code)
 
     def close(self):
         """ Panel gizlenirken DEĞİL, sadece uygulama tamamen kapanırken çağrılır
