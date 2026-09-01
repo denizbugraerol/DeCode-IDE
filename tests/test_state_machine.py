@@ -108,3 +108,47 @@ def test_openfile_olmayan_yol_sekme_acmaz(pencere, tmp_path, monkeypatch, capsys
 
     assert pencere.editor_tabs.count() == onceki_sekme
     assert "bulunamadı" in capsys.readouterr().out
+
+
+def test_pio_komutu_alt_komutu_sinyalle_yayar(qapp):
+    editor = _editor(qapp)
+    gelen = []
+    editor.pio_requested.connect(gelen.append)
+    QTest.keyClicks(editor, ":pio build")
+    QTest.keyClick(editor, Qt.Key.Key_Return)
+    assert gelen == ["build"]
+
+
+def test_pio_bilinmeyen_alt_komut_sinyal_yaymaz(qapp):
+    editor = _editor(qapp)
+    gelen = []
+    editor.pio_requested.connect(gelen.append)
+    QTest.keyClicks(editor, ":pio derle")
+    QTest.keyClick(editor, Qt.Key.Key_Return)
+    assert gelen == []
+
+
+def test_pio_argumansiz_sinyal_yaymaz(qapp):
+    editor = _editor(qapp)
+    gelen = []
+    editor.pio_requested.connect(gelen.append)
+    QTest.keyClicks(editor, ":pio")
+    QTest.keyClick(editor, Qt.Key.Key_Return)
+    assert gelen == []
+
+
+def test_pio_tamamlamasi_alt_komutlari_listeler(qapp):
+    editor = _editor(qapp)
+    adlar = [ad for ad, _aciklama in editor.state_machine._matches_for("pio ")]
+    assert adlar == ["pio build", "pio clean", "pio env", "pio monitor", "pio upload"]
+
+
+def test_pio_tamamlamasi_oneke_gore_daralir(qapp):
+    editor = _editor(qapp)
+    adlar = [ad for ad, _aciklama in editor.state_machine._matches_for("pio u")]
+    assert adlar == ["pio upload"]
+
+
+def test_pio_ana_oneri_listesinde(qapp):
+    editor = _editor(qapp)
+    assert any(ad == "pio" for ad, _aciklama in editor.state_machine._matches_for("pi"))

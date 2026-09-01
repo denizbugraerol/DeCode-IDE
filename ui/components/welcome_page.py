@@ -35,10 +35,12 @@ class WelcomePage(QWidget):
     command_line_changed = pyqtSignal(str)
     command_suggestions_changed = pyqtSignal(list, int)
     settings_reload_requested = pyqtSignal()  # ':reload'
+    pio_requested = pyqtSignal(str)           # ':pio build|upload|monitor|clean|env'
 
     # Sekme (metin tamponu) yokken anlamlı olan komutlar. StateMachine öneri
     # listesini buna göre daraltıyor: çalışmayan komut önerilmesin.
-    available_commands = ("b", "cd", "openfile", "qa", "reload", "tabnew", "term", "termnew", "ts")
+    available_commands = ("b", "cd", "openfile", "pio", "qa", "reload",
+                          "tabnew", "term", "termnew", "ts")
 
     # Terminal ve editördekiyle aynı aile
     _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier

@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor
 
 from core.search import parse_replace_args
+from embedded import pio_cli
 
 class StateMachine:
     """ NORMAL moddaki çıplak tuşları (i, :) ve COMMAND moddaki gerçek
@@ -16,7 +17,7 @@ class StateMachine:
     KNOWN_COMMANDS = (
         "d", "w", "b", "y", "p", "wq", "q", "qa", "wqa", "ts", "cd",
         "term", "termnew", "tabnew", "tabclose", "tabnext", "tabprev",
-        "find", "replace", "openfile", "sym", "reload",
+        "find", "replace", "openfile", "sym", "reload", "pio",
     )
     COMMAND_DESCRIPTIONS = {
         "d": "geçerli satırı sil",
@@ -33,6 +34,7 @@ class StateMachine:
         "replace": "metni değiştir (:replace eski yeni)",
         "openfile": "dosya aç (:openfile <yol>)",
         "sym": "dosyadaki tanımlara atla",
+        "pio": "PlatformIO (:pio build|upload|monitor|clean|env)",
         "reload": "ayar dosyasını yeniden oku",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
@@ -113,6 +115,8 @@ class StateMachine:
             return self._path_matches_for("cd", prefix[3:], include_files=False)
         if prefix.startswith("openfile "):
             return self._path_matches_for("openfile", prefix[9:], include_files=True)
+        if prefix.startswith("pio "):
+            return self._pio_matches_for(prefix[4:])
         available = self._available_commands()
         names = [c for c in available if c.startswith(prefix)] if prefix else list(available)
         names.sort()
@@ -156,6 +160,15 @@ class StateMachine:
             matches.append((f"{command} {joined}/" if is_dir else f"{command} {joined}", ""))
 
         return matches
+
+    def _pio_matches_for(self, fragment):
+        """ ':pio <alt-komut>' tamamlaması. Alt komut listesinin tek kaynağı
+        embedded/pio_cli.SUBCOMMANDS — komut satırındaki liste ile gerçekten
+        çalışan komutlar ayrışmasın diye. """
+        fragment = fragment.strip()
+        return [(f"pio {ad}", aciklama)
+                for ad, aciklama in sorted(pio_cli.SUBCOMMANDS.items())
+                if ad.startswith(fragment)]
 
     def _refresh_suggestions(self):
         """ Yazma/silme sonrası (Tab dışı her değişiklikte) tamamlama döngüsünü
@@ -212,6 +225,8 @@ class StateMachine:
                 self.editor.search(pattern)
             else:
                 self.editor.search_next()
+        elif text == "pio" or text.startswith("pio "):
+            self._run_pio(text[3:].strip())
         elif text.startswith("replace "):
             arguments = parse_replace_args(text[8:])
             if arguments is None:
@@ -285,6 +300,15 @@ class StateMachine:
         self.editor.setCursorWidth(self.editor.cursor_width_insert)
         self.editor.mode_changed.emit("INSERT")
         print("MOD: INSERT")
+
+    def _run_pio(self, subcommand):
+        """ ':pio <alt-komut>' — asıl iş IDEWindow'da (proje kökü, pio'nun
+        yeri, terminal sekmesi); burada yalnız alt komut doğrulanıp sinyal
+        yayılıyor. """
+        if subcommand in pio_cli.SUBCOMMANDS:
+            self.editor.pio_requested.emit(subcommand)
+        else:
+            print(f"Kullanım: :pio {'|'.join(pio_cli.SUBCOMMANDS)}")
 
     def _delete_current_line(self):
         """ ':d' — asıl iş editörde; burada yalnızca dağıtım yapılıyor. """

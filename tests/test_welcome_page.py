@@ -78,3 +78,10 @@ def test_statusline_sekme_yok_gosterir(pencere):
     pencere.show()
     pencere.editor_tabs.close_current_tab()
     assert "Sekme yok" in pencere.status_line.file_label.text()
+
+
+def test_karsilama_sayfasinda_pio_kullanilabilir(qapp):
+    """ ':pio build' metin tamponu gerektirmiyor; son sekme kapandığında da
+    çalışmalı. """
+    from ui.components.welcome_page import WelcomePage
+    assert "pio" in WelcomePage.available_commands

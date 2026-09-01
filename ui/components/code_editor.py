@@ -42,6 +42,7 @@ class ModalEditor(QPlainTextEdit):
     command_line_changed = pyqtSignal(str)
     command_suggestions_changed = pyqtSignal(list, int)
     settings_reload_requested = pyqtSignal()
+    pio_requested = pyqtSignal(str)           # ':pio build|upload|monitor|clean|env'
 
     def __init__(self):
         super().__init__()
