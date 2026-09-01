@@ -32,14 +32,17 @@ class StatusLine(QWidget):
         self.mode_label = QLabel()
         self.mode_label.setObjectName("statusMode")
         self.file_label = QLabel()
+        self.env_label = QLabel()
         self.position_label = QLabel()
 
         layout.addWidget(self.mode_label)
         layout.addWidget(self.file_label, 1)
+        layout.addWidget(self.env_label)
         layout.addWidget(self.position_label)
 
         self.set_mode("NORMAL")
         self.set_file("[No Name]")
+        self.set_env(None)
         self.set_position(1, 1)
 
     def set_mode(self, mode):
@@ -61,6 +64,15 @@ class StatusLine(QWidget):
 
     def set_file(self, name):
         self.file_label.setText(name or "[No Name]")
+
+    def set_env(self, text):
+        """ PlatformIO ortamı. Parantezli metin ('(esp32dev)') 'ben seçmedim,
+        pio'nun kendi varsayılanı' demek; None etiketi boşaltır.
+
+        Bilinçli olarak setStyleSheet YOK: rengi/fontu stylesheet'e kopyalayan
+        her çağrı ':reload'da elle tazelenmek zorunda kalıyor (bkz. set_mode ve
+        IDEWindow.apply_settings). Düz metin bu tuzağı hiç doğurmuyor. """
+        self.env_label.setText(text or "")
 
     def set_position(self, line, col):
         """ Satır/sütun; sekme yokken (karşılama sayfası) None verilip boş

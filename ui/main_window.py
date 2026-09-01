@@ -13,6 +13,7 @@ from core import config
 from core.file_index import FileIndexWorker
 from core.symbols import extract_symbols
 from core.file_manager import FileManager
+from embedded import pio_cli, pio_project
 
 
 class IDEWindow(QMainWindow):
@@ -32,6 +33,10 @@ class IDEWindow(QMainWindow):
             for warning in warnings:
                 print(warning)
         self.settings = settings
+
+        # ':pio env' ile seçilen ortam; ':cd' başka projeye geçince sıfırlanır.
+        # _setup_ui rozeti kurduğu için bu satır ondan önce gelmeli.
+        self.pio_env = None
 
         self.setWindowTitle("DeCode IDE - v0.2")
         self.setGeometry(100, 100, 1200, 800)
@@ -138,6 +143,10 @@ class IDEWindow(QMainWindow):
         # Sidebar'dayken Esc'e basılırsa odağı editöre geri ver
         self.sidebar.return_focus_requested.connect(self.focus_editor)
 
+        # PlatformIO rozeti açılışta da doğru olsun (CWD zaten bir proje
+        # olabilir).
+        self._refresh_pio_badge()
+
     # --- Aktif sekmeye kısayollar: main_window'un geri kalanı tek bir
     # editörle konuşuyormuş gibi kalabilsin diye. ---
 
@@ -160,6 +169,7 @@ class IDEWindow(QMainWindow):
             "command_line_changed": self.command_line.set_text,
             "command_suggestions_changed": self._on_suggestions_changed,
             "settings_reload_requested": self.reload_settings,
+            "pio_requested": self._on_pio_requested,
         }
         for name, handler in connections.items():
             getattr(host, name).connect(handler)
@@ -378,6 +388,66 @@ class IDEWindow(QMainWindow):
         self.command_palette.open_with(f"Tanım ara ({self.current_file_name})", items, mode="symbol")
         self._show_palette()
 
+    def _on_pio_requested(self, subcommand):
+        """ ':pio <alt-komut>' — proje kökünü ve pio'yu bulup komutu terminal
+        panelinde kendi sekmesinde çalıştırır. Hatalar konsola tek satır
+        yazılır; hiçbiri sekme açmaz. """
+        root = pio_project.find_project_root(os.getcwd())
+        if root is None:
+            print("PlatformIO projesi bulunamadı (platformio.ini yok).")
+            return
+
+        if subcommand == "env":
+            self._open_env_palette(root)
+            return
+
+        executable = pio_cli.find_executable()
+        if executable is None:
+            print("PlatformIO bulunamadı (kurulum: pip install platformio).")
+            return
+
+        argv = pio_cli.build_argv(subcommand, executable, env=self.pio_env)
+        if argv is None:
+            print(f"Bilinmeyen PlatformIO alt komutu: {subcommand}")
+            return
+
+        self.terminal_panel.run_command(argv, f"pio {subcommand}", cwd=root)
+
+    def _open_env_palette(self, root):
+        """ ':pio env' — platformio.ini'deki ortamları telescope paletinde
+        listeler; seçim self.pio_env olur (bkz. _on_palette_accepted). """
+        info, warnings = pio_project.read_project(root)
+        for warning in warnings:
+            print(warning)
+
+        environments = info["environments"]
+        if not environments:
+            print("Bu projede tanımlı ortam yok (platformio.ini'de [env:...] yok).")
+            return
+
+        self.command_palette.open_with(
+            f"Ortam seç ({os.path.basename(root)})",
+            [(name, name) for name in environments], mode="env")
+        self._show_palette()
+
+    def _refresh_pio_badge(self):
+        """ Statusline'daki ortam etiketi. Seçim yoksa pio'nun kendi
+        varsayılanı parantez içinde gösterilir (K5: o durumda argv'ye '-e'
+        eklenmiyor, kararı ini veriyor); proje yoksa etiket boşalır. """
+        root = pio_project.find_project_root(os.getcwd())
+        if root is None:
+            self.status_line.set_env(None)
+            return
+        if self.pio_env:
+            self.status_line.set_env(self.pio_env)
+            return
+
+        info, warnings = pio_project.read_project(root)
+        for warning in warnings:
+            print(warning)
+        defaults = info["default_envs"]
+        self.status_line.set_env(f"({defaults[0]})" if defaults else "(—)")
+
     def _on_file_index_ready(self, paths):
         """ Arka plan taraması bitti: palet hâlâ dosya modunda açıksa doldur. """
         if self.command_palette.isVisible() and self.command_palette.mode == "file":
@@ -411,6 +481,10 @@ class IDEWindow(QMainWindow):
             editor = self.editor
             if editor is not None:
                 editor.goto_line(payload)
+        elif mode == "env":
+            self.pio_env = payload
+            self._refresh_pio_badge()
+            print(f"PlatformIO ortamı: {payload}")
 
     def _change_directory(self, path):
         """ ':cd [yol]' ile tetiklenir — gerçek Vim'deki :cd gibi çalışma dizinini
@@ -428,6 +502,10 @@ class IDEWindow(QMainWindow):
         os.chdir(target)
         self.sidebar.set_root_path(target)
         print(f"Çalışma dizini değiştirildi: {target}")
+
+        # Başka bir projeye geçmiş olabiliriz: seçili ortam artık geçerli değil.
+        self.pio_env = None
+        self._refresh_pio_badge()
 
     def apply_settings(self):
         """ self.settings'i her yere dağıtır: palet, font durumu, QSS,
