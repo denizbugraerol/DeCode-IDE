@@ -35,6 +35,11 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
   komut odağın bulunduğu yere uygulanır ([Sprint 08](sprint/sprint-08.md))
 - **Gömülü terminal** — gerçek PTY üzerinde `pyte` ile çizilen, sekmeli shell
   paneli; Alt+Shift kısayollarıyla yönetiliyor ([Sprint 05](sprint/sprint-05.md))
+- **PlatformIO** — `:pio build|upload|monitor|clean` gömülü terminalde kendi
+  sekmesinde çalışıyor (renkli çıktı, gerçek Ctrl+C, sekme başlığında `✓`/`✗`,
+  aynı komut ikinci kez çalışınca sekme yeniden kullanılıyor); `:pio env`
+  `platformio.ini`'deki ortamı seçiyor ve seçim statusline'da görünüyor
+  ([Sprint 10](sprint/sprint-10.md))
 - **Dosya ağacı** — CWD'ye köklenmiş sidebar, `:cd` ile kök değiştirme, Esc ile
   odağı editöre döndürme ([Sprint 01](sprint/sprint-01.md), [02](sprint/sprint-02.md))
 - **Sözdizimi renklendirme** — C/C++ ve Python (çok satırlı docstring dahil)
@@ -43,11 +48,12 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
   ve terminal satır sayısı özelleştirilebiliyor; `:reload` uygulamayı
   kapatmadan yeniden uyguluyor ([Sprint 09](sprint/sprint-09.md))
 - **Test altyapısı** — pytest, `QT_QPA_PLATFORM=offscreen` ile ekransız çalışan
-  112 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md))
+  183 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
+  [10](sprint/sprint-10.md))
 
 Henüz yok: Vim tarzı düzenleme komutları (`dd`, `yy`, `x`, `o`/`O`, sayı
 önekleri), VISUAL mod, geri al/yinele + `.` ile son komutu tekrar, oturum geri
-yükleme, PlatformIO/seri monitör entegrasyonu, lint. Harf tabanlı hareket
+yükleme, kendi seri monitörümüz, derleme hatasından koda atlama, lint. Harf tabanlı hareket
 komutları (`h/j/k/l`, `w/b`, `gg`/`G`) bu listede değil — bkz. Faz 3, kasıtlı
 olarak uygulanmayacak.
 
@@ -94,16 +100,19 @@ kişiselleştirme.
 Projenin varlık sebebi. `embedded/` klasörü ilk commit'ten beri bu faz için
 yer tutuyor.
 
-- **`embedded/pio_cli.py`** — PlatformIO CLI sarmalayıcısı: `build`, `upload`,
-  `clean`, `monitor`. Çıktı, mevcut terminal paneline (`TerminalPanel`) yeni bir
-  sekme olarak akacak; ayrı bir çıktı penceresi yazılmayacak.
-- **Komutlar** — `:pio build`, `:pio upload`, `:pio monitor`; öneri listesine
-  ve tamamlamaya eklenecek.
-- **`embedded/serial_reader.py`** — seri monitör: port/baud seçimi, gelen
-  veriyi terminal sekmesi gibi çizme.
-- **Kart ve port seçimi** — `platformio.ini` okunarak ortamların listelenmesi.
-- **Derleme hatasından koda atlama** — çıktıdaki `dosya:satır` eşleşmelerini
-  yakalayıp ilgili sekmede o satıra gitme.
+- **`embedded/pio_cli.py` + `embedded/pio_project.py`** — **tamamlandı**
+  ([Sprint 10](sprint/sprint-10.md)): `build`, `upload`, `clean`, `monitor`
+  argv'leri ve `platformio.ini` ayrıştırma. Çıktı `TerminalPanel`'de kendi
+  sekmesine akıyor; ayrı bir çıktı penceresi yazılmadı.
+- **Komutlar** — **tamamlandı**: `:pio build|upload|monitor|clean|env`, öneri
+  listesi ve `:pio ` tamamlamasıyla.
+- **Kart ve port seçimi** — **tamamlandı**: `platformio.ini` okunup ortamlar
+  `:pio env` paletinde listeleniyor, seçim statusline rozetinde duruyor.
+- **`embedded/serial_reader.py`** — açık (Sprint 12): kendi seri monitörümüz
+  (port/baud seçimi, yeniden bağlanma). Bugün `:pio monitor` PlatformIO'nun
+  kendi monitörünü çalıştırıyor.
+- **Derleme hatasından koda atlama** — açık (Sprint 11): çıktıdaki
+  `dosya:satır` eşleşmelerini yakalayıp ilgili sekmede o satıra gitme.
 
 ## Faz 5 — Dağıtım
 
@@ -116,9 +125,9 @@ yer tutuyor.
 | Konu | Durum | Nerede |
 |---|---|---|
 | `__pycache__` deposu kirletiyor | Çözüldü ([Sprint 06](sprint/sprint-06.md)): kural eklendi, 14 `.pyc` takipten çıkarıldı | `.gitignore` |
-| Lint altyapısı yok | Test var (112 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| Lint altyapısı yok | Test var (183 test, pytest); lint/format aracı hâlâ seçilmedi | — |
 | `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
-| Boş yer tutucular | `pio_cli.py`, `serial_reader.py` | Faz 4 |
+| Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | Sprint 12 |
 | Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
 | `forkpty()` çok iş parçacıklı süreçte | `:ts` taraması sürerken `:term` açmak uyarı üretiyor | `core/terminal_process.py` |
@@ -133,5 +142,5 @@ Tarih verilmiyor; sıra ve çıkış kriteri veriliyor.
 | **v0.1** | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride |
 | **v0.2** (bugün) | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor |
 | **v0.3** | Faz 3 | Düzenleme komutları (`dd`/`yy`/`x`/`o`/`O`) + VISUAL mod; ayar dosyası ✅ (Sprint 09), oturum geri yükleniyor |
-| **v0.4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla; seri monitör açılıyor |
+| **v0.4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla ✅ ([Sprint 10](sprint/sprint-10.md)); hatadan koda atlama ve kendi seri monitörümüz kaldı |
 | **v1.0** | Faz 5 | Kurulabilir paket ve belgelenmiş komut/kısayol referansı |
