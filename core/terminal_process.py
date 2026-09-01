@@ -163,6 +163,10 @@ class TerminalProcess(QObject):
             self.exit_code = os.waitstatus_to_exitcode(status)
         except (ChildProcessError, OSError):
             self.exit_code = -1
+        # Reap edildi: is_running() artık dürüst olsun. Bayat bir _pid,
+        # "biten sekme yeniden çalışmasın" korumasını sessizce üstlenir ve
+        # TerminalView'daki asıl koruma (_finished) ölü kodmuş gibi görünür.
+        self._pid = None
         self.finished.emit()
         self.exited.emit(self.exit_code)
 

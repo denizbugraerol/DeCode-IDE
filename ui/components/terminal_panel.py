@@ -19,6 +19,7 @@ class TerminalView(QWidget):
     close_tab_requested = pyqtSignal()      # Alt+Shift+W
     next_tab_requested = pyqtSignal()       # Alt+Shift+Sağ
     prev_tab_requested = pyqtSignal()       # Alt+Shift+Sol
+    command_finished = pyqtSignal()         # komut bitti -> panel başlığı tazelesin
 
     ROWS = 9
     PADDING = 6
@@ -46,13 +47,18 @@ class TerminalView(QWidget):
         Qt.Key.Key_Delete: b"\x1b[3~", Qt.Key.Key_Insert: b"\x1b[2~",
     }
 
-    def __init__(self, rows=ROWS, parent=None):
+    def __init__(self, rows=ROWS, argv=None, title=None, cwd=None, parent=None):
         super().__init__(parent)
         self.rows = rows
+        self.command_title = title   # None -> shell sekmesi
+        self.exit_code = None
+        self._finished = False
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._process = TerminalProcess(rows=self.rows, cols=80, parent=self)
+        self._process = TerminalProcess(rows=self.rows, cols=80, argv=argv,
+                                        cwd=cwd, parent=self)
         self._process.output_ready.connect(self.update)
         self._process.finished.connect(self.update)
+        self._process.exited.connect(self._on_exited)
 
     # --- Boyut ---
 
@@ -86,7 +92,11 @@ class TerminalView(QWidget):
         # Gizliyken layout resizeEvent üretmeyebilir; tekrar görünür olunca
         # savunmacı biçimde yeniden hesapla.
         self._recompute_cols()
-        if not self._process.is_running():
+        # DİKKAT: '_finished' koşulu olmadan, biten bir komut sekmesi panel
+        # ':term' ile gizlenip yeniden açıldığında komutu KENDİLİĞİNDEN
+        # tekrar çalıştırır — 'pio upload' için bu, gerçek karta yeniden
+        # yazmak demek.
+        if not self._process.is_running() and not self._finished:
             self._process.start()
         self.setFocus()
 
@@ -94,6 +104,49 @@ class TerminalView(QWidget):
 
     def shell_name(self):
         return os.path.basename(os.environ.get("SHELL", "/bin/bash"))
+
+    def _on_exited(self, exit_code):
+        self._finished = True
+        self.exit_code = exit_code
+        self.update()
+        self.command_finished.emit()
+
+    def is_finished(self):
+        return self._finished
+
+    def title(self):
+        """ Sekme etiketi: shell sekmesinde kabuğun adı, komut sekmesinde
+        verilen başlık ve süreç bitince sonucu.
+
+        DİKKAT: sekme eşleştirmesi (TerminalPanel._find_command_tab) bu SÜSLÜ
+        metne değil command_title'a bakar; yoksa 'pio build ✓' ile 'pio build'
+        eşleşmez ve her derleme yeni sekme açar. """
+        if self.command_title is None:
+            return self.shell_name()
+        if not self._finished:
+            return self.command_title
+        return (f"{self.command_title} ✓" if self.exit_code == 0
+                else f"{self.command_title} ✗ ({self.exit_code})")
+
+    def start_now(self):
+        """ Sekmenin görünür olmasını beklemeden süreci başlatır (komut
+        sekmeleri). Ölçü ÖNCE alınır: PTY boyutu start() sırasında kurulur,
+        sonra hesaplamak ilk çıktıyı yanlış genişlikte sarmalar. """
+        self._recompute_cols()
+        if not self._process.is_running():
+            self._process.start()
+
+    def restart(self, argv, cwd=None):
+        """ Aynı sekmede yeni bir süreç (K4: ':pio build' ikinci kez). Eski
+        süreç TerminalProcess.close() ile (SIGHUP, gerekirse SIGKILL)
+        kapatılır; pyte ekranı start() içinde sıfırdan kurulur. """
+        self._process.close()
+        self._process.argv = argv
+        self._process.cwd = cwd
+        self._finished = False
+        self.exit_code = None
+        self.start_now()
+        self.command_finished.emit()   # başlıktaki ✓/✗ eki temizlensin
 
     def shutdown(self):
         self._process.close()
@@ -270,7 +323,47 @@ class TerminalPanel(QWidget):
     # --- Sekmeler ---
 
     def new_tab(self):
-        view = TerminalView(rows=self._rows)
+        """ ':termnew' / Alt+Shift+N — her zaman yeni bir SHELL sekmesi. """
+        return self._add_view(TerminalView(rows=self._rows))
+
+    def run_command(self, argv, title, cwd=None):
+        """ Bir komutu kendi sekmesinde çalıştırır (':pio build'). Aynı
+        başlıkla açık bir komut sekmesi varsa yeni sekme açılmaz, o sekme
+        yeniden kullanılır (K4). """
+        index = self._find_command_tab(title)
+        if index is None:
+            view = self._add_view(
+                TerminalView(rows=self._rows, argv=argv, title=title, cwd=cwd))
+            self.show()
+            self._activate_layout()
+            view.start_now()
+        else:
+            view = self.stack.widget(index)
+            self.tab_bar.setCurrentIndex(index)
+            self.show()
+            self._activate_layout()
+            view.restart(argv, cwd)
+
+        self._relabel_tabs()
+        self._focus_current_view()
+        return view
+
+    def _find_command_tab(self, title):
+        """ Süslenmemiş başlığa göre arar (bkz. TerminalView.title). """
+        for i in range(self.stack.count()):
+            if self.stack.widget(i).command_title == title:
+                return i
+        return None
+
+    def _activate_layout(self):
+        """ Yeni eklenen sekmenin geometrisi henüz hesaplanmamış olabilir;
+        süreci başlatmadan önce layout'u zorlayarak sütun sayısını doğru
+        ölçüyoruz (PTY boyutu start()'ta kuruluyor). """
+        self.layout().activate()
+
+    def _add_view(self, view):
+        """ Sekme kurulumunun ortak yolu: shell sekmesi de komut sekmesi de
+        buradan geçer. """
         if self._font is not None:
             view.apply_font(self._font)
 
@@ -279,6 +372,7 @@ class TerminalPanel(QWidget):
         view.close_tab_requested.connect(self.close_current_tab)
         view.next_tab_requested.connect(lambda: self.switch_tab(1))
         view.prev_tab_requested.connect(lambda: self.switch_tab(-1))
+        view.command_finished.connect(self._relabel_tabs)
 
         index = self.stack.addWidget(view)
         self.tab_bar.addTab("")
@@ -315,7 +409,7 @@ class TerminalPanel(QWidget):
     def _relabel_tabs(self):
         for i in range(self.tab_bar.count()):
             view = self.stack.widget(i)
-            self.tab_bar.setTabText(i, f"{i + 1}: {view.shell_name()}")
+            self.tab_bar.setTabText(i, f"{i + 1}: {view.title()}")
 
     def _focus_current_view(self, *_args):
         view = self.stack.currentWidget()
