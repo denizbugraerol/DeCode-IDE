@@ -1,7 +1,9 @@
-from PyQt6.QtWidgets import QPlainTextEdit, QWidget
+from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal
-from PyQt6.QtGui import QTextCursor, QPainter, QColor
+from PyQt6.QtGui import QTextCursor, QTextCharFormat, QPainter, QColor, QFontMetricsF
+from ui import theme
 from ui.components.syntax_highlighter import CppHighlighter, PythonHighlighter
+from core.search import find_all, find_next, replace_all
 from core.state_machine import StateMachine
 
 
@@ -25,6 +27,8 @@ class ModalEditor(QPlainTextEdit):
     save_requested = pyqtSignal()
     sidebar_toggle_requested = pyqtSignal()
     telescope_requested = pyqtSignal()
+    open_path_requested = pyqtSignal(str)
+    symbol_search_requested = pyqtSignal()
     change_directory_requested = pyqtSignal(str)
     quit_requested = pyqtSignal()
     terminal_toggle_requested = pyqtSignal()
@@ -37,6 +41,8 @@ class ModalEditor(QPlainTextEdit):
     mode_changed = pyqtSignal(str)
     command_line_changed = pyqtSignal(str)
     command_suggestions_changed = pyqtSignal(list, int)
+    settings_reload_requested = pyqtSignal()
+    pio_requested = pyqtSignal(str)           # ':pio build|upload|monitor|clean|env'
 
     def __init__(self):
         super().__init__()
@@ -45,6 +51,9 @@ class ModalEditor(QPlainTextEdit):
         # Bu sekmenin hangi dosyayı gösterdiği (henüz kaydedilmemişse None).
         # Sekme başlığı, ':w' ve 'zaten açık mı' kontrolü bunu kullanır.
         self.file_path = None
+
+        # ':find <desen>' ile aranan son desen; 'n'/'N' bunu kullanır.
+        self.search_pattern = ""
 
         # İmleç genişliğini ayarlayarak modları görselleştiriyoruz
         self.cursor_width_insert = 1
@@ -56,6 +65,11 @@ class ModalEditor(QPlainTextEdit):
         #state_machine yolla
         self.state_machine = StateMachine(self)
 
+        # Ayar dosyasından gelen editör davranışı (bkz. apply_settings).
+        self.tab_width = 4
+        self.expand_tabs = False
+        self.line_numbers = True
+
         # --- Satır numarası gutter'ı (Vim/Neovim'deki 'number' gibi) ---
         self.line_number_area = LineNumberArea(self)
         self.blockCountChanged.connect(self._update_line_number_area_width)
@@ -63,14 +77,54 @@ class ModalEditor(QPlainTextEdit):
         self.cursorPositionChanged.connect(self.line_number_area.update)
         self._update_line_number_area_width(0)
 
+    def apply_settings(self, editor_settings):
+        """ Ayar dosyasındaki [editor] bölümünü uygular. Açılışta ve ':reload'da
+        çağrılır.
+
+        Font ailesi/boyutu buradan ayarlanmaz: onları QSS veriyor (bkz.
+        ui/theme.stylesheet). Burada font yalnız sekme genişliğini ölçmek için
+        okunuyor, o yüzden önce ensurePolished() ile stilin çözülmesi
+        bekleniyor. """
+        self.tab_width = editor_settings["tab_width"]
+        self.expand_tabs = editor_settings["expand_tabs"]
+        self.line_numbers = editor_settings["line_numbers"]
+
+        # Sekme genişliği piksel cinsinden isteniyor; boşluk genişliğinden
+        # hesaplıyoruz ki 'tab_width' karakter sayısı anlamına gelsin.
+        self.ensurePolished()
+        self.setTabStopDistance(
+            QFontMetricsF(self.font()).horizontalAdvance(" ") * self.tab_width)
+
+        self.line_number_area.setVisible(self.line_numbers)
+        self._update_line_number_area_width(0)
+        self.viewport().update()
+
     def set_highlighter_for_file(self, file_path):
-        """ Dosya uzantısına göre uygun syntax highlighter'a geçer: '.py' için
-        PythonHighlighter, diğer her şey için (varsayılan) CppHighlighter. """
+        """ Dosya uzantısına göre uygun highlighter SINIFINA geçer; hâlihazırda
+        doğru sınıftaysa dokunmaz. Bu metodun işi yalnızca budur — bir
+        highlighter'ı geçerli paletle yeniden renklendirmek (ör. ':reload'da)
+        onun işi DEĞİL, bkz. refresh_theme(). (Kod incelemesi Bulgu 8: eskiden
+        force=True parametresiyle aynı sınıfı da atıp yeniden kurarak bunu
+        yapıyordu; artık tek mekanizma var, o da highlighter.rebuild(). ) """
         highlighter_cls = PythonHighlighter if file_path and file_path.lower().endswith(".py") else CppHighlighter
         if isinstance(self.highlighter, highlighter_cls):
             return
         self.highlighter.setDocument(None)
         self.highlighter = highlighter_cls(self.document())
+
+    def refresh_theme(self):
+        """ Paletten renk KOPYALAYAN durumları — highlighter kuralları ve
+        arama-eşleşmesi vurgusu — geçerli paletle yerinde tazeler.
+        IDEWindow.apply_settings açık her editör için bunu çağırır; açılış
+        (__init__ sonunda) ve ':reload' artık aynı yoldan (apply_settings)
+        geçtiği için ikisi de bu tazelemeyi alır (bkz. kod incelemesi Bulgu 1).
+
+        set_highlighter_for_file'ın işi bu DEĞİL (o yalnız dosya uzantısı
+        değişince SINIF değiştirir, bkz. yukarısı); highlighter nesnesini
+        atıp yeniden kurmaya gerek yok, rebuild() aynı nesneyi yerinde
+        günceller. """
+        self.highlighter.rebuild()
+        self._highlight_matches()
 
     # Terminal panelindekiyle aynı aile: Alt+Shift tabanlı sekme/odak kısayolları
     _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
@@ -80,17 +134,19 @@ class ModalEditor(QPlainTextEdit):
         Klavyeden basılan her tuş buraya düşer.
         Tuşları ekrana basmadan önce mod kontrolünden geçiririz.
         """
-        # Sekme geçişi ve terminale odaklanma her modda çalışır; bu yüzden
-        # mod dağıtımından önce bakılır.
+        # Alt+Shift ailesi her modda çalışır; bu yüzden mod dağıtımından önce
+        # bakılır. Terminaldeki (TerminalView) eşleme ile birebir aynı tuşlar:
+        # komut, odağın bulunduğu yere — burada editör sekmelerine — uygulanır.
         if event.modifiers() == self._PANEL_MODIFIERS:
-            if event.key() == Qt.Key.Key_Right:
-                self.tab_next_requested.emit()
-                return
-            if event.key() == Qt.Key.Key_Left:
-                self.tab_prev_requested.emit()
-                return
-            if event.key() == Qt.Key.Key_T:
-                self.terminal_focus_requested.emit()
+            signal = {
+                Qt.Key.Key_T: self.terminal_focus_requested,
+                Qt.Key.Key_N: self.tab_new_requested,
+                Qt.Key.Key_W: self.tab_close_requested,
+                Qt.Key.Key_Right: self.tab_next_requested,
+                Qt.Key.Key_Left: self.tab_prev_requested,
+            }.get(event.key())
+            if signal is not None:
+                signal.emit()
                 return
 
         if self.current_mode == "NORMAL":
@@ -110,6 +166,11 @@ class ModalEditor(QPlainTextEdit):
 
             if event.key() in nav_keys or event.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 super().keyPressEvent(event)
+
+            # Escape, text() olarak boş değil ('\x1b') döndüğü için aşağıdaki
+            # 'yazılabilir tuş' dalından ÖNCE ele alınmalı.
+            elif event.key() == Qt.Key.Key_Escape:
+                self.clear_search()
 
             # 'i' ve ':' dahil, yazılabilir tuşları State Machine'e yönlendiriyoruz
             # (':' gibi Shift gerektiren tuşlar için Shift de kabul edilir)
@@ -132,13 +193,111 @@ class ModalEditor(QPlainTextEdit):
             self.setCursorWidth(self.cursor_width_normal)
             self.mode_changed.emit("NORMAL")
             print("NORMAL moda geçildi.")
+        elif event.key() == Qt.Key.Key_Tab and self.expand_tabs:
+            # Ayar açıkken Tab gerçek '\t' değil, tab_width kadar boşluk yazar.
+            self.insertPlainText(" " * self.tab_width)
         else:
             # Escape değilse, standart yazma işlemini yap (QPlainTextEdit'in kendi işlevi)
             super().keyPressEvent(event)
 
+    # --- Dosya içi arama (':find', 'n', 'N') ---
+
+    def search(self, pattern):
+        """ ':find <desen>' — deseni saklar, tüm eşleşmeleri vurgular ve
+        imleçten sonraki ilk eşleşmeye atlar. """
+        self.search_pattern = pattern
+        self._highlight_matches()
+        return self.search_next()
+
+    def search_next(self, backward=False):
+        """ 'n' / 'N' — saklı desenin sonraki (ya da önceki) eşleşmesini seçer.
+        Dosya sonuna gelince başa sarar. Desen yoksa ya da hiç eşleşme yoksa
+        False döndürür. """
+        if not self.search_pattern:
+            return False
+
+        cursor = self.textCursor()
+        # Aramaya imlecin bir yanından başlıyoruz ki aynı eşleşmede takılı
+        # kalmayalım (Vim'de de 'n' bulunduğun eşleşmeyi tekrar bulmaz).
+        start = cursor.selectionStart() - 1 if backward else cursor.selectionStart() + 1
+
+        index = find_next(self.toPlainText(), self.search_pattern, start, backward)
+        if index is None:
+            print(f"Desen bulunamadı: {self.search_pattern}")
+            return False
+
+        cursor.setPosition(index)
+        cursor.setPosition(index + len(self.search_pattern), QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(cursor)
+        return True
+
+    def clear_search(self):
+        """ NORMAL modda Escape — vurguyu temizler (Vim'deki ':nohlsearch').
+        Desen saklı kalır, 'n' ile aramaya devam edilebilir. """
+        self.setExtraSelections([])
+
+    def _highlight_matches(self):
+        """ Aranan desenin tüm geçişlerini Tokyo Night vurgusuyla boyar. """
+        selections = []
+        if self.search_pattern:
+            highlight = QTextCharFormat()
+            highlight.setBackground(QColor(theme.color("search")))
+            highlight.setForeground(QColor(theme.color("fg_bright")))
+
+            for index in find_all(self.toPlainText(), self.search_pattern):
+                cursor = QTextCursor(self.document())
+                cursor.setPosition(index)
+                cursor.setPosition(index + len(self.search_pattern), QTextCursor.MoveMode.KeepAnchor)
+                selection = QTextEdit.ExtraSelection()
+                selection.cursor = cursor
+                selection.format = highlight
+                selections.append(selection)
+
+        self.setExtraSelections(selections)
+
+    def replace_all_text(self, old, new):
+        """ ':replace eski yeni' — tüm eşleşmeleri değiştirir ve değiştirme
+        sayısını döndürür. Tek bir geri-al adımı olsun diye belgenin tamamı
+        beginEditBlock/endEditBlock arasında yeniden yazılır; imleç konumu
+        elden geldiğince korunur. """
+        new_text, count = replace_all(self.toPlainText(), old, new)
+        if count == 0:
+            return 0
+
+        cursor = self.textCursor()
+        position = cursor.position()
+
+        cursor.beginEditBlock()
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.insertText(new_text)
+        cursor.endEditBlock()
+
+        cursor.setPosition(min(position, len(new_text)))
+        self.setTextCursor(cursor)
+        self._highlight_matches()
+        return count
+
+    def delete_current_line(self):
+        """ ':d' — imlecin bulunduğu satırı siler. """
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
+        cursor.removeSelectedText()
+        cursor.deleteChar()
+        self.setTextCursor(cursor)
+
+    def goto_line(self, line_number):
+        """ ':42' ve ':sym' ile seçilen sembol için: 1 tabanlı satıra atlar. """
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        cursor.movePosition(QTextCursor.MoveOperation.Down,
+                            QTextCursor.MoveMode.MoveAnchor, max(0, line_number - 1))
+        self.setTextCursor(cursor)
+
     # --- Satır numarası gutter'ı: Qt'nin standart Code Editor deseni ---
 
     def line_number_area_width(self):
+        if not self.line_numbers:
+            return 0
         digits = len(str(max(1, self.blockCount())))
         return 12 + self.fontMetrics().horizontalAdvance("9") * digits
 
@@ -161,7 +320,7 @@ class ModalEditor(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event):
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), QColor("#16161e"))
+        painter.fillRect(event.rect(), QColor(theme.color("bg_dark")))
 
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
@@ -172,7 +331,7 @@ class ModalEditor(QPlainTextEdit):
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(block_number + 1)
-                color = QColor("#c0caf5") if block_number == current_line else QColor("#3b4261")
+                color = QColor(theme.color("fg")) if block_number == current_line else QColor(theme.color("gutter"))
                 painter.setPen(color)
                 painter.drawText(
                     0, top, self.line_number_area.width() - 6, self.fontMetrics().height(),

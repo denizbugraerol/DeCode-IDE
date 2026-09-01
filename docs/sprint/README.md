@@ -4,7 +4,7 @@ DeCode IDE'nin sprint kayıtları. Her sprint kendi dosyasında durur; biten
 sprintler arşiv olarak olduğu gibi kalır, yeni iş her zaman yeni bir dosyaya
 yazılır. Uzun vadeli plan için [Roadmap](../Roadmap.md)'e bakın.
 
-**Aktif sprint:** [Sprint 06 — Telescope ve depo hijyeni](sprint-06.md)
+**Aktif sprint:** yok — son iş [Sprint 10](sprint-10.md).
 
 | Sprint | Tarih | Başlık | Durum |
 |---|---|---|---|
@@ -12,8 +12,12 @@ yazılır. Uzun vadeli plan için [Roadmap](../Roadmap.md)'e bakın.
 | [02](sprint-02.md) | 06–11 Tem 2026 | Modal çekirdek ve kısayollar | Tamamlandı |
 | [03](sprint-03.md) | 25 Ağu 2026 | Komut satırı ve durum çubuğu | Tamamlandı |
 | [04](sprint-04.md) | 28 Ağu 2026 | Tamamlama ve editör cilası | Tamamlandı |
-| [05](sprint-05.md) | 31 Ağu 2026 | Sekmeler, terminal, kaydırılabilir öneriler | Tamamlandı (commit bekliyor) |
-| [06](sprint-06.md) | 31 Ağu 2026 – … | Telescope ve depo hijyeni | **Aktif** |
+| [05](sprint-05.md) | 31 Ağu 2026 | Sekmeler, terminal, kaydırılabilir öneriler | Tamamlandı |
+| [06](sprint-06.md) | 31 Ağu 2026 | Telescope ve depo hijyeni | Tamamlandı |
+| [07](sprint-07.md) | 31 Ağu 2026 | Dosya içi arama, değiştirme, sembol atlama | Tamamlandı |
+| [08](sprint-08.md) | 31 Ağu 2026 | Kısayol eşitliği ve karşılama sayfası | Tamamlandı |
+| [09](sprint-09.md) | 31 Ağu 2026 | Ayar dosyası ve :reload | Tamamlandı |
+| [10](sprint-10.md) | 01 Eyl 2026 | PlatformIO çalıştırma çekirdeği | Tamamlandı |
 
 ## Yeni sprint nasıl açılır
 

@@ -19,6 +19,8 @@ class EditorTabs(QTabWidget):
     save_requested = pyqtSignal()
     sidebar_toggle_requested = pyqtSignal()
     telescope_requested = pyqtSignal()
+    open_path_requested = pyqtSignal(str)   # ':openfile <yol>'
+    symbol_search_requested = pyqtSignal()  # ':sym'
     change_directory_requested = pyqtSignal(str)
     quit_requested = pyqtSignal()             # ':qa' — uygulamadan çık
     terminal_toggle_requested = pyqtSignal()
@@ -27,11 +29,13 @@ class EditorTabs(QTabWidget):
     mode_changed = pyqtSignal(str)
     command_line_changed = pyqtSignal(str)
     command_suggestions_changed = pyqtSignal(list, int)
+    settings_reload_requested = pyqtSignal()  # ':reload'
+    pio_requested = pyqtSignal(str)           # ':pio <alt-komut>'
     cursor_position_changed = pyqtSignal()
 
     # --- Sekme durumu ---
     active_file_changed = pyqtSignal(str)     # statusline/pencere başlığı için
-    last_tab_closed = pyqtSignal()            # son sekme de kapandı -> çık
+    tab_count_changed = pyqtSignal(int)       # 0 olunca IDEWindow karşılama sayfasına geçer
 
     PLACEHOLDER = "Normal Mod: Yazmak için 'i', komut için ':' tuşuna basın. Çıkmak için 'Esc'."
     UNTITLED = "[No Name]"
@@ -67,6 +71,7 @@ class EditorTabs(QTabWidget):
         index = self.addTab(editor, self._title_for(editor))
         self.setCurrentIndex(index)
         editor.setFocus()
+        self.tab_count_changed.emit(self.count())
         return editor
 
     def open_file(self, file_path, content):
@@ -115,9 +120,10 @@ class EditorTabs(QTabWidget):
         # gelebiliyor; C++ nesnesi olay döngüsü turu bitene kadar yaşasın.
         editor.deleteLater()
 
-        if self.count() == 0:
-            self.last_tab_closed.emit()
-        else:
+        # Son sekme de kapansa uygulama kapanmaz: IDEWindow karşılama
+        # sayfasına geçer (çıkış için ':qa' var).
+        self.tab_count_changed.emit(self.count())
+        if self.count():
             self.current_editor().setFocus()
 
     def switch_tab(self, step):
@@ -151,6 +157,10 @@ class EditorTabs(QTabWidget):
             lambda e=editor: self._relay(e, self.sidebar_toggle_requested))
         editor.telescope_requested.connect(
             lambda e=editor: self._relay(e, self.telescope_requested))
+        editor.open_path_requested.connect(
+            lambda path, e=editor: self._relay(e, self.open_path_requested, path))
+        editor.symbol_search_requested.connect(
+            lambda e=editor: self._relay(e, self.symbol_search_requested))
         editor.change_directory_requested.connect(
             lambda path, e=editor: self._relay(e, self.change_directory_requested, path))
         editor.quit_requested.connect(
@@ -167,6 +177,10 @@ class EditorTabs(QTabWidget):
             lambda text, e=editor: self._relay(e, self.command_line_changed, text))
         editor.command_suggestions_changed.connect(
             lambda matches, i, e=editor: self._relay(e, self.command_suggestions_changed, matches, i))
+        editor.settings_reload_requested.connect(
+            lambda e=editor: self._relay(e, self.settings_reload_requested))
+        editor.pio_requested.connect(
+            lambda subcommand, e=editor: self._relay(e, self.pio_requested, subcommand))
         editor.cursorPositionChanged.connect(
             lambda e=editor: self._relay(e, self.cursor_position_changed))
 

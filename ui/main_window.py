@@ -6,7 +6,14 @@ from ui.components.sidebar import Sidebar
 from ui.components.editor_tabs import EditorTabs
 from ui.components.bottom_panel import StatusLine, CommandLine, CommandSuggestions
 from ui.components.terminal_panel import TerminalPanel
+from ui.components.command_palette import CommandPalette
+from ui.components.welcome_page import WelcomePage
+from ui import theme
+from core import config
+from core.file_index import FileIndexWorker
+from core.symbols import extract_symbols
 from core.file_manager import FileManager
+from embedded import pio_cli, pio_project
 
 
 class IDEWindow(QMainWindow):
@@ -15,10 +22,23 @@ class IDEWindow(QMainWindow):
     SUGGESTIONS_GAP = 6
     SUGGESTIONS_BOTTOM_MARGIN = 12
 
-    def __init__(self):
+    def __init__(self, settings=None):
         super().__init__()
-        
-        self.setWindowTitle("DeCode IDE - v0.1")
+
+        # settings=None ise dosyadan okunur. Testler ve gömülü kullanım açık
+        # sözlük verir; bir IDEWindow oluşturmak kullanıcının gerçek ayar
+        # dosyasına bağımlı olmasın.
+        if settings is None:
+            settings, warnings = config.load()
+            for warning in warnings:
+                print(warning)
+        self.settings = settings
+
+        # ':pio env' ile seçilen ortam; ':cd' başka projeye geçince sıfırlanır.
+        # _setup_ui rozeti kurduğu için bu satır ondan önce gelmeli.
+        self.pio_env = None
+
+        self.setWindowTitle("DeCode IDE - v0.2")
         self.setGeometry(100, 100, 1200, 800)
 
         # Merkez widget ve ana layout
@@ -32,7 +52,7 @@ class IDEWindow(QMainWindow):
         self.main_layout.addWidget(self.splitter)
         
         self._setup_ui()
-        self._apply_theme()
+        self.apply_settings()
 
     def _setup_ui(self):
         #Sol panel - Dosya Sistemi
@@ -40,6 +60,10 @@ class IDEWindow(QMainWindow):
 
         # --- Sağ Panel: Sekmeli kod editörü + altında terminal paneli ---
         self.editor_tabs = EditorTabs()
+
+        # Son sekme kapanınca editörün yerini alan sayfa (uygulama kapanmaz).
+        self.welcome_page = WelcomePage()
+        self.welcome_page.hide()
 
         self.terminal_panel = TerminalPanel()
         self.terminal_panel.hide()  # ':term' çalıştırılana kadar gizli, layout'ta yer kaplamaz
@@ -52,6 +76,7 @@ class IDEWindow(QMainWindow):
         editor_layout.setContentsMargins(0, 0, 0, 0)
         editor_layout.setSpacing(0)
         editor_layout.addWidget(self.editor_tabs, 1)     # kalan tüm alanı alır
+        editor_layout.addWidget(self.welcome_page, 1)    # sekme yokken onun yerine geçer
         editor_layout.addWidget(self.terminal_panel, 0)  # sadece kendi sabit yüksekliğini alır
 
         # Bileşenleri Splitter'a ekliyoruz
@@ -75,6 +100,15 @@ class IDEWindow(QMainWindow):
         self.command_suggestions.setParent(self.central_widget)
         self.command_suggestions.hide()
 
+        # --- Telescope paleti: ':ts' ve ':sym' için ortak yüzen seçici.
+        # Öneri kutusundan farkı, odağı kendisinin alması. ---
+        self.command_palette = CommandPalette()
+        self.command_palette.setParent(self.central_widget)
+        self.command_palette.hide()
+        self.command_palette.accepted.connect(self._on_palette_accepted)
+        self.command_palette.cancelled.connect(self._close_palette)
+        self._file_index_worker = None   # QThread; referans tutulmazsa toplanır
+
         #Çift tıklama, Enter ve (dosyalarda) sağ ok ile açma sinyallerini dinle ve open_file fonksiyonuna yönlendir
         self.sidebar.doubleClicked.connect(self.open_file)
         self.sidebar.activated.connect(self.open_file)
@@ -82,23 +116,24 @@ class IDEWindow(QMainWindow):
         # Komut satırı (':w', ':b', ':ts', ':wq') sinyallerini dinle. Sinyaller
         # artık tek bir editörden değil, aktif sekmeden EditorTabs üzerinden
         # geliyor — arka plandaki sekmelerinkiler yok sayılıyor.
-        self.editor_tabs.save_requested.connect(self.save_file)
-        self.editor_tabs.sidebar_toggle_requested.connect(self.toggle_sidebar_focus)
-        self.editor_tabs.telescope_requested.connect(self.open_telescope_search)
-        self.editor_tabs.change_directory_requested.connect(self._change_directory)
-        self.editor_tabs.quit_requested.connect(self.close)          # ':qa'
-        self.editor_tabs.last_tab_closed.connect(self.close)         # son ':q'
-        self.editor_tabs.terminal_toggle_requested.connect(self.terminal_panel.toggle)
-        self.editor_tabs.terminal_new_requested.connect(self.terminal_panel.open_new_tab)
-        self.editor_tabs.terminal_focus_requested.connect(self.terminal_panel.focus_terminal)
+        # Komut satırını barındıran iki konak (sekme yığını ve karşılama
+        # sayfası) aynı sinyal adlarını kullanıyor; ikisi de aynı tablodan
+        # bağlanıyor.
+        self._connect_modal_host(self.editor_tabs)
+        self._connect_modal_host(self.welcome_page)
         self.terminal_panel.return_focus_requested.connect(self.focus_editor)
 
-        # Mod, komut satırı, imleç konumu ve aktif sekme değiştikçe alt panelleri güncelle
-        self.editor_tabs.mode_changed.connect(self._on_mode_changed)
-        self.editor_tabs.command_line_changed.connect(self.command_line.set_text)
-        self.editor_tabs.command_suggestions_changed.connect(self._on_suggestions_changed)
+        # Sekme yönetimi editörlerde EditorTabs'in kendi içinde karşılanıyor;
+        # karşılama sayfasınınkiler buradan bağlanıyor.
+        self.welcome_page.tab_new_requested.connect(self.editor_tabs.new_tab)
+        self.welcome_page.tab_close_requested.connect(self.editor_tabs.close_current_tab)
+        self.welcome_page.tab_next_requested.connect(lambda: self.editor_tabs.switch_tab(1))
+        self.welcome_page.tab_prev_requested.connect(lambda: self.editor_tabs.switch_tab(-1))
+
+        # Yalnız sekmelerden gelenler: imleç konumu, aktif dosya ve sekme sayısı
         self.editor_tabs.cursor_position_changed.connect(self._update_cursor_position)
         self.editor_tabs.active_file_changed.connect(self._on_active_file_changed)
+        self.editor_tabs.tab_count_changed.connect(self._on_tab_count_changed)
 
         # Alt panellerin başlangıç durumunu aktif sekmeyle senkronla
         self._on_mode_changed(self.editor.current_mode)
@@ -108,12 +143,69 @@ class IDEWindow(QMainWindow):
         # Sidebar'dayken Esc'e basılırsa odağı editöre geri ver
         self.sidebar.return_focus_requested.connect(self.focus_editor)
 
+        # PlatformIO rozeti açılışta da doğru olsun (CWD zaten bir proje
+        # olabilir).
+        self._refresh_pio_badge()
+
     # --- Aktif sekmeye kısayollar: main_window'un geri kalanı tek bir
     # editörle konuşuyormuş gibi kalabilsin diye. ---
+
+    # Komut satırını barındıran bileşenlerin IDEWindow işleyicilerine bağlandığı
+    # tablo. ModalEditor ve WelcomePage aynı sinyal adlarını yaydığı için tek
+    # yerden kuruluyor.
+    def _connect_modal_host(self, host):
+        connections = {
+            "save_requested": self.save_file,
+            "sidebar_toggle_requested": self.toggle_sidebar_focus,
+            "telescope_requested": self.open_telescope_search,
+            "symbol_search_requested": self.open_symbol_search,
+            "open_path_requested": self._open_relative_path,
+            "change_directory_requested": self._change_directory,
+            "quit_requested": self.close,                      # ':qa'
+            "terminal_toggle_requested": self.terminal_panel.toggle,
+            "terminal_new_requested": self.terminal_panel.open_new_tab,
+            "terminal_focus_requested": self.terminal_panel.focus_terminal,
+            "mode_changed": self._on_mode_changed,
+            "command_line_changed": self.command_line.set_text,
+            "command_suggestions_changed": self._on_suggestions_changed,
+            "settings_reload_requested": self.reload_settings,
+            "pio_requested": self._on_pio_requested,
+        }
+        for name, handler in connections.items():
+            getattr(host, name).connect(handler)
 
     @property
     def editor(self):
         return self.editor_tabs.current_editor()
+
+    @property
+    def modal_host(self):
+        """ O an komut satırını barındıran bileşen: sekme varsa aktif editör,
+        yoksa karşılama sayfası. Mod/öneri kontrolleri bunu kullanır. """
+        editor = self.editor_tabs.current_editor()
+        return editor if editor is not None else self.welcome_page
+
+    def _on_tab_count_changed(self, count):
+        """ Sekme sayısı değişince editör yığını ile karşılama sayfası arasında
+        geçiş yapar. Son sekme kapansa bile uygulama kapanmıyor — çıkış ':qa'
+        (ya da pencere kapatma düğmesi) ile. """
+        empty = count == 0
+        self.editor_tabs.setVisible(not empty)
+        self.welcome_page.setVisible(empty)
+
+        host = self.modal_host
+        if empty:
+            self.setWindowTitle("DeCode IDE - [Sekme yok]")
+            self.status_line.set_file("[Sekme yok]")
+            self.status_line.set_position(None, None)
+        else:
+            self._update_cursor_position()
+            editor = self.editor
+            editor.apply_settings(self.settings["editor"])
+            self.terminal_panel.sync_font_with_editor(editor)
+
+        self._on_mode_changed(host.current_mode)
+        host.setFocus()
 
     @property
     def current_file_path(self):
@@ -126,9 +218,9 @@ class IDEWindow(QMainWindow):
         return os.path.basename(path) if path else "[No Name]"
 
     def focus_editor(self):
-        editor = self.editor
-        if editor is not None:
-            editor.setFocus()
+        """ Odağı komut satırını barındıran bileşene verir (sekme yoksa
+        karşılama sayfasına). """
+        self.modal_host.setFocus()
 
     def _on_active_file_changed(self, title):
         """ Aktif sekme (ya da onun kaydedilmemiş değişiklik durumu) değişince
@@ -154,8 +246,7 @@ class IDEWindow(QMainWindow):
         Tab/Shift+Tab ile gezinirken) öneri kutusunu günceller. """
         self.command_suggestions.set_suggestions(matches, selected_index)
 
-        editor = self.editor
-        if matches and editor is not None and editor.current_mode == "COMMAND":
+        if matches and self.modal_host.current_mode == "COMMAND":
             # Liste boyutu (ör. 9 satırdan 2'ye) küçüldüğünde Qt'nin layout
             # önbelleği aynı olay döngüsü turunda doğru boyutu vermiyor;
             # boyutlandırmayı bir sonraki tur'a erteliyoruz.
@@ -164,8 +255,7 @@ class IDEWindow(QMainWindow):
             self.command_suggestions.hide()
 
     def _show_command_suggestions(self):
-        editor = self.editor
-        if editor is None or editor.current_mode != "COMMAND" or not self.command_suggestions.has_suggestions():
+        if self.modal_host.current_mode != "COMMAND" or not self.command_suggestions.has_suggestions():
             return
 
         # Kutuya, komut satırının altı ile statusline arasında kalan boşluk
@@ -202,6 +292,8 @@ class IDEWindow(QMainWindow):
             # Sadece taşımak yetmez: pencere alçaldıysa kutunun boyu da
             # yeniden sınırlanmalı.
             self._show_command_suggestions()
+        if self.command_palette.isVisible():
+            self._show_palette()
 
     def _update_cursor_position(self):
         """ İmleç her hareket ettiğinde (ve sekme değişince) statusline'daki
@@ -218,11 +310,26 @@ class IDEWindow(QMainWindow):
         file_path = self.sidebar.get_file_path(index)
         if os.path.isdir(file_path):
             return
+        self._open_path(file_path)
 
+    def _open_relative_path(self, path):
+        """ ':openfile <yol>' — göreli yollar çalışma dizinine göre çözülür. """
+        expanded = os.path.expanduser(path)
+        if not os.path.isabs(expanded):
+            expanded = os.path.join(os.getcwd(), expanded)
+        self._open_path(os.path.normpath(expanded))
+
+    def _open_path(self, file_path):
+        """ Dosyayı okuyup uygun sekmede açar. Sidebar, telescope paleti ve
+        ':openfile <yol>' aynı yoldan geçer. """
         try:
             content = FileManager.read_file(file_path)
         except UnicodeDecodeError:
             print(f"'{os.path.basename(file_path)}' metin formatında değil (resim veya derlenmiş dosya).")
+            return
+        except ValueError:
+            # FileManager, olmayan yol ya da dizin için ValueError fırlatıyor.
+            print(f"Açılamadı (dosya değil ya da bulunamadı): {file_path}")
             return
         except Exception as e:
             print(f"Dosya okunurken bir hata oluştu: {e}")
@@ -249,14 +356,135 @@ class IDEWindow(QMainWindow):
     def toggle_sidebar_focus(self):
             """ ':b' komutuyla odak Sidebar ile Editor arasında gidip gelir. """
             if self.sidebar.hasFocus():
-                self.editor.setFocus()
+                self.focus_editor()
             else:
                 self.sidebar.setFocus()
 
     def open_telescope_search(self):
-        """ ':ts' komutuyla tetiklenir — LazyVim'deki Telescope'a benzer bulanık arama modunun temeli.
-        Henüz gerçek bir arama arayüzü yok; Faz 2/3'te ui/components/command_palette.py üzerinden uygulanacak. """
-        print("Telescope arama modu tetiklendi (henüz uygulanmadı).")
+        """ ':ts' — çalışma dizinini arka planda tarar ve bulanık dosya arama
+        paletini açar. Tarama bitene kadar palet boş ama kullanılabilir
+        durumda durur; sonuç gelince kendiliğinden dolar. """
+        root = os.getcwd()
+        self.command_palette.open_with(f"Dosya ara ({os.path.basename(root)})", [], mode="file")
+        self._show_palette()
+
+        self._file_index_worker = FileIndexWorker(root, parent=self)
+        self._file_index_worker.ready.connect(self._on_file_index_ready)
+        self._file_index_worker.start()
+
+    def open_symbol_search(self):
+        """ ':sym' — açık dosyadaki tanımları telescope paletinde listeler;
+        seçilen tanımın satırına atlar. """
+        editor = self.editor
+        if editor is None:
+            return
+
+        symbols = extract_symbols(editor.toPlainText(), editor.file_path)
+        if not symbols:
+            print("Bu dosyada tanım bulunamadı.")
+            return
+
+        items = [(f"{kind:<9} {name}    {line}", line) for kind, name, line in symbols]
+        self.command_palette.open_with(f"Tanım ara ({self.current_file_name})", items, mode="symbol")
+        self._show_palette()
+
+    def _on_pio_requested(self, subcommand):
+        """ ':pio <alt-komut>' — proje kökünü ve pio'yu bulup komutu terminal
+        panelinde kendi sekmesinde çalıştırır. Hatalar konsola tek satır
+        yazılır; hiçbiri sekme açmaz. """
+        root = pio_project.find_project_root(os.getcwd())
+        if root is None:
+            print("PlatformIO projesi bulunamadı (platformio.ini yok).")
+            return
+
+        if subcommand == "env":
+            self._open_env_palette(root)
+            return
+
+        executable = pio_cli.find_executable()
+        if executable is None:
+            print("PlatformIO bulunamadı (kurulum: pip install platformio).")
+            return
+
+        argv = pio_cli.build_argv(subcommand, executable, env=self.pio_env)
+        if argv is None:
+            print(f"Bilinmeyen PlatformIO alt komutu: {subcommand}")
+            return
+
+        self.terminal_panel.run_command(argv, f"pio {subcommand}", cwd=root)
+
+    def _open_env_palette(self, root):
+        """ ':pio env' — platformio.ini'deki ortamları telescope paletinde
+        listeler; seçim self.pio_env olur (bkz. _on_palette_accepted). """
+        info, warnings = pio_project.read_project(root)
+        for warning in warnings:
+            print(warning)
+
+        environments = info["environments"]
+        if not environments:
+            print("Bu projede tanımlı ortam yok (platformio.ini'de [env:...] yok).")
+            return
+
+        self.command_palette.open_with(
+            f"Ortam seç ({os.path.basename(root)})",
+            [(name, name) for name in environments], mode="env")
+        self._show_palette()
+
+    def _refresh_pio_badge(self):
+        """ Statusline'daki ortam etiketi. Seçim yoksa pio'nun kendi
+        varsayılanı parantez içinde gösterilir (K5: o durumda argv'ye '-e'
+        eklenmiyor, kararı ini veriyor); proje yoksa etiket boşalır. """
+        root = pio_project.find_project_root(os.getcwd())
+        if root is None:
+            self.status_line.set_env(None)
+            return
+        if self.pio_env:
+            self.status_line.set_env(self.pio_env)
+            return
+
+        info, warnings = pio_project.read_project(root)
+        for warning in warnings:
+            print(warning)
+        defaults = info["default_envs"]
+        self.status_line.set_env(f"({defaults[0]})" if defaults else "(—)")
+
+    def _on_file_index_ready(self, paths):
+        """ Arka plan taraması bitti: palet hâlâ dosya modunda açıksa doldur. """
+        if self.command_palette.isVisible() and self.command_palette.mode == "file":
+            self.command_palette.set_items([(path, path) for path in paths])
+
+    def _show_palette(self):
+        """ Paleti ekranın üst üçte birinde, yatayda ortalayarak gösterir ve
+        odağı ona verir. """
+        area = self.central_widget.rect()
+        self.command_palette.adjustSize()
+        x = (area.width() - self.command_palette.width()) // 2
+        y = max(24, (area.height() - self.command_palette.height()) // 3)
+        self.command_palette.move(x, y)
+        self.command_palette.show()
+        self.command_palette.raise_()
+        self.command_palette.setFocus()
+
+    def _close_palette(self):
+        self.command_palette.hide()
+        self.focus_editor()
+
+    def _on_palette_accepted(self, payload):
+        """ Palette Enter'a basılınca: dosya modunda dosyayı açar, sembol
+        modunda o satıra atlar. """
+        mode = self.command_palette.mode
+        self._close_palette()
+
+        if mode == "file":
+            self._open_path(os.path.join(os.getcwd(), payload))
+        elif mode == "symbol":
+            editor = self.editor
+            if editor is not None:
+                editor.goto_line(payload)
+        elif mode == "env":
+            self.pio_env = payload
+            self._refresh_pio_badge()
+            print(f"PlatformIO ortamı: {payload}")
 
     def _change_directory(self, path):
         """ ':cd [yol]' ile tetiklenir — gerçek Vim'deki :cd gibi çalışma dizinini
@@ -275,119 +503,72 @@ class IDEWindow(QMainWindow):
         self.sidebar.set_root_path(target)
         print(f"Çalışma dizini değiştirildi: {target}")
 
-    def _apply_theme(self):
-        # Tokyo Night esintili arayüz renkleri
-        stylesheet = """
-            QMainWindow { background-color: #1a1b26; }
-            QTreeView {
-                background-color: #16161e;
-                color: #c0caf5;
-                border: none;
-                font-size: 14px;
-                outline: none;
-            }
-            QTreeView::item:selected { background-color: #283457; color: #ffffff; }
-            QTreeView::item:hover { background-color: #1f2335; }
-            QPlainTextEdit {
-                background-color: #1a1b26;
-                color: #c0caf5;
-                border: none;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 15px;
-                padding: 10px;
-            }
-            QSplitter::handle { background-color: #1f2335; width: 2px; }
-            QWidget#statusLine {
-                background-color: #1f2335;
-            }
-            QWidget#statusLine QLabel {
-                color: #c0caf5;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 11px;
-            }
-            QLabel#commandLine {
-                background-color: #1f2335;
-                color: #c0caf5;
-                border: 1px solid #414868;
-                border-radius: 8px;
-                padding: 4px 12px;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 16px;
-            }
-            QWidget#commandSuggestions {
-                background-color: #1f2335;
-                border: 1px solid #414868;
-                border-radius: 8px;
-            }
-            QScrollArea#commandSuggestionsScroll {
-                background: transparent;
-                border: none;
-            }
-            QScrollArea#commandSuggestionsScroll QScrollBar:vertical {
-                background: transparent;
-                width: 6px;
-                margin: 0;
-            }
-            QScrollArea#commandSuggestionsScroll QScrollBar::handle:vertical {
-                background-color: #414868;
-                border-radius: 3px;
-                min-height: 24px;
-            }
-            QScrollArea#commandSuggestionsScroll QScrollBar::handle:vertical:hover {
-                background-color: #565f89;
-            }
-            QScrollArea#commandSuggestionsScroll QScrollBar::add-line:vertical,
-            QScrollArea#commandSuggestionsScroll QScrollBar::sub-line:vertical {
-                height: 0;
-            }
-            QScrollArea#commandSuggestionsScroll QScrollBar::add-page:vertical,
-            QScrollArea#commandSuggestionsScroll QScrollBar::sub-page:vertical {
-                background: transparent;
-            }
-            QWidget#terminalPanel {
-                background-color: #16161e;
-                border-top: 2px solid #414868;
-            }
+        # Başka bir projeye geçmiş olabiliriz: seçili ortam artık geçerli değil.
+        self.pio_env = None
+        self._refresh_pio_badge()
 
-            /* --- Sekmeler: editör (üstte) ve terminal (panel içinde) --- */
-            QTabWidget#editorTabs::pane {
-                border: none;
-                background-color: #1a1b26;
-            }
-            QTabWidget#editorTabs > QTabBar,
-            QTabBar#terminalTabBar {
-                background-color: #16161e;
-                qproperty-drawBase: 0;
-            }
-            QTabWidget#editorTabs > QTabBar::tab,
-            QTabBar#terminalTabBar::tab {
-                background-color: #16161e;
-                color: #565f89;
-                border: none;
-                border-right: 1px solid #1a1b26;
-                border-bottom: 2px solid transparent;
-                padding: 5px 14px;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                font-size: 12px;
-            }
-            QTabWidget#editorTabs > QTabBar::tab:hover,
-            QTabBar#terminalTabBar::tab:hover {
-                background-color: #1f2335;
-                color: #c0caf5;
-            }
-            QTabWidget#editorTabs > QTabBar::tab:selected,
-            QTabBar#terminalTabBar::tab:selected {
-                background-color: #1a1b26;
-                color: #7aa2f7;
-                border-bottom: 2px solid #7aa2f7;
-            }
-            QTabBar#terminalTabBar::tab {
-                font-size: 11px;
-                padding: 3px 12px;
-            }
-        """
-        self.setStyleSheet(stylesheet)
-        self.terminal_panel.sync_font_with_editor(self.editor)
+    def apply_settings(self):
+        """ self.settings'i her yere dağıtır: palet, font durumu, QSS,
+        editörler, terminal. Açılış (__init__ sonunda) ve ':reload'
+        (reload_settings) TEK bu metottan geçer — gerçekten aynı yoldan.
+
+        Bu yüzden buradaki onarım adımları (highlighter/arama-vurgusu,
+        statusline rozeti) ikisi için de geçerli olur. _setup_ui paletin/
+        fontun HENÜZ varsayılan olduğu anda kurulan widget'lar üretir (ilk
+        sekmenin ModalEditor'ü, statusline rozetinin ilk setStyleSheet'i);
+        bu ikisi rengi kendi içine KOPYALAR, theme.color(...)/theme.font_*()
+        ile boyama anında OKUMAZ. Burada onları tazelemezsek, açılışta özel
+        bir palet/font verilse bile bu iki widget uygulama ömrü boyunca (ya
+        da ilk mod değişikliği/uygun bir dosya açılışına kadar) varsayılanı
+        taşımaya devam eder (kod incelemesi Bulgu 1) — bkz. sprint-09 teknik
+        notları: paletten KOPYALANAN her renk apply_settings'te yeniden
+        türetilmeli, yalnızca reload_settings'te değil. """
+        palette, warnings = theme.build_palette(self.settings["colors"])
+        for warning in warnings:
+            print(warning)
+        theme.set_palette(palette)
+        theme.set_font(self.settings["editor"]["font_family"], self.settings["editor"]["font_size"])
+
+        self._apply_theme()
+
+        for editor in self.editor_tabs.editors():
+            editor.apply_settings(self.settings["editor"])
+            # Highlighter kuralları ve arama vurgusu birer QTextCharFormat'a
+            # rengi KOPYALAR; palet değişince kendiliğinden güncellenmezler.
+            editor.refresh_theme()
+
+        self.terminal_panel.apply_settings(self.settings["terminal"])
+
+        # Statusline rozeti de rengi/fontu setStyleSheet içine KOPYALIYOR
+        # (bkz. StatusLine.set_mode); mod değişmemiş olsa bile burada yeniden
+        # çağırmazsak _setup_ui'nin ilk çağrısındaki varsayılan renkte/boyutta
+        # takılı kalır.
+        self.status_line.set_mode(self.modal_host.current_mode)
+
+    def _apply_theme(self):
+        """ Geçerli paleti ve fontu pencereye uygular. Palet ui/theme'de;
+        burada yalnız üretilen QSS takılıyor. """
+        editor_settings = self.settings["editor"]
+        self.setStyleSheet(theme.stylesheet(
+            theme.palette(), editor_settings["font_family"], editor_settings["font_size"]))
+
+        # Terminal '9 satır' yüksekliğini editörün QSS'ten gelen gerçek satır
+        # yüksekliğiyle ölçüyor; sekme yoksa ölçecek editör de yok.
+        if self.editor is not None:
+            self.terminal_panel.sync_font_with_editor(self.editor)
+
+    def reload_settings(self):
+        """ ':reload' — ayar dosyasını yeniden okuyup uygular. Açık sekmeler,
+        imleçler ve terminal oturumları korunur. Onarım adımları (highlighter,
+        arama vurgusu, statusline rozeti) apply_settings içinde — açılışla
+        birebir aynı yoldan geçiyoruz, burada ayrıca tekrarlanmaz. """
+        settings, warnings = config.load()
+        for warning in warnings:
+            print(warning)
+        self.settings = settings
+        self.apply_settings()
+
+        print("Ayarlar yeniden yüklendi.")
 
     def closeEvent(self, event):
         """ Uygulama kapanırken terminaldeki shell sürecini (ve PTY'yi)

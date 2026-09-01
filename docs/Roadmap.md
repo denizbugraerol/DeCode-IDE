@@ -10,7 +10,7 @@ paletine sadık kalır**.
 
 Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) bakın.
 
-## Bugünkü durum — v0.1
+## Bugünkü durum — v0.2
 
 Çalışan özellikler:
 
@@ -20,44 +20,79 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
   komutlar, Tab/Shift+Tab tamamlama, kaydırılabilir öneri listesi
   ([Sprint 03](sprint/sprint-03.md), [05](sprint/sprint-05.md))
 - **Komutlar** — `i`, `:w`, `:d`, `:b`, `:y`, `:p`, `:cd <yol>`, `:42`, `:q`, `:wq`,
-  `:qa`, `:wqa`, `:tabnew`, `:tabclose`, `:tabnext`, `:tabprev`, `:term`, `:termnew`
+  `:qa`, `:wqa`, `:tabnew`, `:tabclose`, `:tabnext`, `:tabprev`, `:term`, `:termnew`,
+  `:ts`, `:find <desen>`, `:replace eski yeni`, `:openfile <yol>`, `:sym`, `:reload`
+- **Arama ve gezinme** — bulanık dosya arama paleti (`:ts`), dosya içi arama
+  (`:find` + çıplak `n`/`N`, tüm eşleşmeler vurgulu, Esc temizler), değiştirme
+  (`:replace`), yol tamamlamalı dosya açma (`:openfile`) ve sembol paleti
+  (`:sym`) ([Sprint 06](sprint/sprint-06.md), [07](sprint/sprint-07.md))
 - **Çoklu sekme** — her sekmenin kendi editörü ve modu, `●` ile kaydedilmemiş
-  değişiklik göstergesi ([Sprint 05](sprint/sprint-05.md))
+  değişiklik göstergesi ([Sprint 05](sprint/sprint-05.md)). Son sekme kapanınca
+  uygulama kapanmıyor: komut satırı çalışan bir karşılama sayfasında kalıyor
+  ([Sprint 08](sprint/sprint-08.md))
+- **Alt+Shift kısayolları** — `T` editör/terminal odağı, `N` yeni sekme,
+  `W` kapat, `←`/`→` sekme değiştir; hem editör hem terminal sekmelerinde,
+  komut odağın bulunduğu yere uygulanır ([Sprint 08](sprint/sprint-08.md))
 - **Gömülü terminal** — gerçek PTY üzerinde `pyte` ile çizilen, sekmeli shell
   paneli; Alt+Shift kısayollarıyla yönetiliyor ([Sprint 05](sprint/sprint-05.md))
+- **PlatformIO** — `:pio build|upload|monitor|clean` gömülü terminalde kendi
+  sekmesinde çalışıyor (renkli çıktı, gerçek Ctrl+C, sekme başlığında `✓`/`✗`,
+  aynı komut ikinci kez çalışınca sekme yeniden kullanılıyor); `:pio env`
+  `platformio.ini`'deki ortamı seçiyor ve seçim statusline'da görünüyor
+  ([Sprint 10](sprint/sprint-10.md))
 - **Dosya ağacı** — CWD'ye köklenmiş sidebar, `:cd` ile kök değiştirme, Esc ile
   odağı editöre döndürme ([Sprint 01](sprint/sprint-01.md), [02](sprint/sprint-02.md))
 - **Sözdizimi renklendirme** — C/C++ ve Python (çok satırlı docstring dahil)
+- **Ayar dosyası** (`~/.config/decode/config.toml`) — renk paleti (17 token),
+  font ailesi/boyutu, sekme genişliği, `expand_tabs`, satır numarası açık/kapalı
+  ve terminal satır sayısı özelleştirilebiliyor; `:reload` uygulamayı
+  kapatmadan yeniden uyguluyor ([Sprint 09](sprint/sprint-09.md))
+- **Test altyapısı** — pytest, `QT_QPA_PLATFORM=offscreen` ile ekransız çalışan
+  183 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
+  [10](sprint/sprint-10.md))
 
-Henüz yok: dosya arama, dosya içi arama/değiştirme, Vim hareket komutları,
-ayar dosyası, PlatformIO/seri monitör entegrasyonu, test altyapısı.
+Henüz yok: Vim tarzı düzenleme komutları (`dd`, `yy`, `x`, `o`/`O`, sayı
+önekleri), VISUAL mod, geri al/yinele + `.` ile son komutu tekrar, oturum geri
+yükleme, kendi seri monitörümüz, derleme hatasından koda atlama, lint. Harf tabanlı hareket
+komutları (`h/j/k/l`, `w/b`, `gg`/`G`) bu listede değil — bkz. Faz 3, kasıtlı
+olarak uygulanmayacak.
 
-## Faz 2 — Arama ve gezinme (sıradaki)
+## Faz 2 — Arama ve gezinme (tamamlandı)
 
-Bugün bir dosyayı açmanın tek yolu sidebar'da tıklamak; proje büyüdükçe bu
-yavaşlıyor. Faz 2'nin amacı klavyeyle hedefe gitmek.
+Amaç klavyeyle hedefe gitmekti; dosya açmanın tek yolu artık sidebar'da
+tıklamak değil.
 
 - **Telescope / bulanık dosya arama (`:ts`)** — `ui/components/command_palette.py`
-  bugün boş bir yer tutucu; `IDEWindow.open_telescope_search` yalnızca `print`
-  ediyor. `CommandSuggestions`'daki yüzen liste deseni yeniden kullanılacak.
-- **Dosya içi arama** (`/` ile ileri, `n`/`N` ile sonraki eşleşme) ve
-  **değiştirme** (`:s/eski/yeni/`) — `StateMachine` üzerinden.
-- **`:e <yol>`** ile doğrudan dosya açma; `:cd` tamamlamasındaki yol
-  tamamlaması (`_path_matches_for`) burada da kullanılacak.
-- **Sembol/satır atlama** — açık dosyadaki fonksiyon/sınıf tanımlarına atlama.
+  gerçek palet oldu; kutu `FloatingList` olarak `CommandSuggestions`'la
+  paylaşılıyor, dosya listesi arka planda taranıyor.
+- **Dosya içi arama** (`:find <desen>`, çıplak `n`/`N` ile sonraki/önceki
+  eşleşme, tüm eşleşmeler vurgulu, NORMAL modda Esc vurguyu temizler) ve
+  **değiştirme** (`:replace eski yeni`) — çekirdeği `core/search.py`'de.
+- **`:openfile <yol>`** ile doğrudan dosya açma; `_path_matches_for` artık hem
+  `:cd` (yalnız dizin) hem `:openfile` (dosya dahil) tamamlamasını üretiyor.
+- **Sembol atlama (`:sym`)** — açık dosyadaki fonksiyon/sınıf tanımlarına
+  atlama; `core/symbols.py`.
 
-## Faz 3 — Editör olgunluğu
+## Faz 3 — Editör olgunluğu (sıradaki)
 
 Editörün "günlük sürücü" olabilmesi için eksik olan Vim refleksleri ve
 kişiselleştirme.
 
-- Hareket ve düzenleme komutları: `h/j/k/l`, `w/b`, `gg`/`G`, `dd`, `yy`, `x`,
-  `o`/`O` ve sayı önekleri (`3dd`) — bugün navigasyon Qt'nin ok tuşlarına
-  bırakılmış durumda.
+- **Navigasyon ok tuşlarında kalıyor** (bilinçli olarak Vim'den ayrılıyoruz):
+  Ok, Home/End, PageUp/PageDown; Shift+Ok seçer, Ctrl+Ok kelime atlar.
+  `h/j/k/l`, `w/b`, `gg`/`G` gibi harf tabanlı hareket komutları
+  **uygulanmayacak**.
+- Düzenleme komutları (`dd`, `yy`, `x`, `o`/`O` ve sayı önekleri) açık
+  duruyor; hareketten bağımsız olarak ele alınacak.
 - Görsel (VISUAL) mod ve seçim üzerinde işlem.
 - Geri al/yinele için Vim tarzı davranış ve `.` ile son komutu tekrar.
-- **Ayar dosyası** (`~/.config/decode/config.toml` gibi): tema, font, sekme
-  genişliği, satır numarası açık/kapalı — bugün hepsi kodda sabit.
+- **Ayar dosyası** (`~/.config/decode/config.toml`) — **tamamlandı**
+  ([Sprint 09](sprint/sprint-09.md)): `[editor]` altında `font_family`,
+  `font_size`, `tab_width`, `expand_tabs`, `line_numbers`; `[terminal]`
+  altında `rows`; `[colors]` altında 17 adlandırılmış renk tokeni
+  (`#rrggbb`, geçersiz/bilinmeyen anahtarlar uyarıyla varsayılana döner).
+  Dosya yoksa ilk açılışta şablonla oluşturuluyor; `:reload` uygulamayı
+  kapatmadan yeniden uyguluyor.
 - Oturum geri yükleme: son açık sekmeler ve çalışma dizini.
 
 ## Faz 4 — Gömülü hedef (PlatformIO)
@@ -65,16 +100,19 @@ kişiselleştirme.
 Projenin varlık sebebi. `embedded/` klasörü ilk commit'ten beri bu faz için
 yer tutuyor.
 
-- **`embedded/pio_cli.py`** — PlatformIO CLI sarmalayıcısı: `build`, `upload`,
-  `clean`, `monitor`. Çıktı, mevcut terminal paneline (`TerminalPanel`) yeni bir
-  sekme olarak akacak; ayrı bir çıktı penceresi yazılmayacak.
-- **Komutlar** — `:pio build`, `:pio upload`, `:pio monitor`; öneri listesine
-  ve tamamlamaya eklenecek.
-- **`embedded/serial_reader.py`** — seri monitör: port/baud seçimi, gelen
-  veriyi terminal sekmesi gibi çizme.
-- **Kart ve port seçimi** — `platformio.ini` okunarak ortamların listelenmesi.
-- **Derleme hatasından koda atlama** — çıktıdaki `dosya:satır` eşleşmelerini
-  yakalayıp ilgili sekmede o satıra gitme.
+- **`embedded/pio_cli.py` + `embedded/pio_project.py`** — **tamamlandı**
+  ([Sprint 10](sprint/sprint-10.md)): `build`, `upload`, `clean`, `monitor`
+  argv'leri ve `platformio.ini` ayrıştırma. Çıktı `TerminalPanel`'de kendi
+  sekmesine akıyor; ayrı bir çıktı penceresi yazılmadı.
+- **Komutlar** — **tamamlandı**: `:pio build|upload|monitor|clean|env`, öneri
+  listesi ve `:pio ` tamamlamasıyla.
+- **Kart ve port seçimi** — **tamamlandı**: `platformio.ini` okunup ortamlar
+  `:pio env` paletinde listeleniyor, seçim statusline rozetinde duruyor.
+- **`embedded/serial_reader.py`** — açık (Sprint 12): kendi seri monitörümüz
+  (port/baud seçimi, yeniden bağlanma). Bugün `:pio monitor` PlatformIO'nun
+  kendi monitörünü çalıştırıyor.
+- **Derleme hatasından koda atlama** — açık (Sprint 11): çıktıdaki
+  `dosya:satır` eşleşmelerini yakalayıp ilgili sekmede o satıra gitme.
 
 ## Faz 5 — Dağıtım
 
@@ -86,11 +124,14 @@ yer tutuyor.
 
 | Konu | Durum | Nerede |
 |---|---|---|
-| `__pycache__` deposu kirletiyor | 11 `.pyc` dosyası takip ediliyor; `.gitignore`'da kural yok | `.gitignore` |
-| Test ve lint altyapısı yok | Doğrulama şimdilik elle / offscreen betiklerle | — |
-| `CLAUDE.md` güncel değil | Tuş tamponu modelini anlatıyor; sekmeler ve terminal yok | `CLAUDE.md` |
-| Boş yer tutucular | `command_palette.py`, `pio_cli.py`, `serial_reader.py` | Faz 2 ve Faz 4 |
-| Tema kodda sabit | Renkler `IDEWindow._apply_theme` içinde string olarak | Faz 3 |
+| `__pycache__` deposu kirletiyor | Çözüldü ([Sprint 06](sprint/sprint-06.md)): kural eklendi, 14 `.pyc` takipten çıkarıldı | `.gitignore` |
+| Lint altyapısı yok | Test var (183 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
+| Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | Sprint 12 |
+| Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
+| C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
+| `forkpty()` çok iş parçacıklı süreçte | `:ts` taraması sürerken `:term` açmak uyarı üretiyor | `core/terminal_process.py` |
+| Tema kodda sabit | Çözüldü ([Sprint 09](sprint/sprint-09.md)): renkler `ui/theme.py`'deki tek palete taşındı, ayar dosyasının `[colors]` bölümünden özelleştirilebiliyor | `ui/theme.py` |
 
 ## Sürüm kilometre taşları
 
@@ -98,8 +139,8 @@ Tarih verilmiyor; sıra ve çıkış kriteri veriliyor.
 
 | Sürüm | Kapsam | Çıkış kriteri |
 |---|---|---|
-| **v0.1** (bugün) | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride |
-| **v0.2** | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor |
-| **v0.3** | Faz 3 | Temel Vim hareketleri + ayar dosyası; oturum geri yükleniyor |
-| **v0.4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla; seri monitör açılıyor |
+| **v0.1** | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride |
+| **v0.2** (bugün) | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor |
+| **v0.3** | Faz 3 | Düzenleme komutları (`dd`/`yy`/`x`/`o`/`O`) + VISUAL mod; ayar dosyası ✅ (Sprint 09), oturum geri yükleniyor |
+| **v0.4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla ✅ ([Sprint 10](sprint/sprint-10.md)); hatadan koda atlama ve kendi seri monitörümüz kaldı |
 | **v1.0** | Faz 5 | Kurulabilir paket ve belgelenmiş komut/kısayol referansı |

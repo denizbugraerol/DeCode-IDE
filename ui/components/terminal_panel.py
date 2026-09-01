@@ -5,33 +5,34 @@ from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
 
 from core.terminal_process import TerminalProcess
+from ui import theme
 
 
 class TerminalView(QWidget):
     """ Tek bir shell oturumunu (bir PTY + bir pyte ekranı) çizen ve klavye
-    girdisini ona ileten widget. Yüksekliği 9 satıra sabitlenir. Panel
-    içindeki her sekme bir TerminalView örneğidir. """
+    girdisini ona ileten widget. Yüksekliği ayar dosyasındaki [terminal] rows
+    değerine göre belirlenir (varsayılan 9). Panel içindeki her sekme bir
+    TerminalView örneğidir. """
 
     return_focus_requested = pyqtSignal()   # Alt+Shift+T -> odak editöre
     new_tab_requested = pyqtSignal()        # Alt+Shift+N
     close_tab_requested = pyqtSignal()      # Alt+Shift+W
     next_tab_requested = pyqtSignal()       # Alt+Shift+Sağ
     prev_tab_requested = pyqtSignal()       # Alt+Shift+Sol
+    command_finished = pyqtSignal()         # komut bitti -> panel başlığı tazelesin
 
     ROWS = 9
     PADDING = 6
 
     # pyte'ın Char.fg / Char.bg alanlarında dönebilecek isimli renkler
-    # (vt102 mirasından: "brown" aslında sarıdır) Tokyo Night paletine eşlenir.
-    _ANSI_COLORS = {
-        "black": "#1a1b26", "red": "#f7768e", "green": "#9ece6a", "brown": "#e0af68",
-        "blue": "#7aa2f7", "magenta": "#bb9af7", "cyan": "#7dcfff", "white": "#c0caf5",
-        "brightblack": "#414868", "brightred": "#f7768e", "brightgreen": "#9ece6a",
-        "brightbrown": "#e0af68", "brightblue": "#7aa2f7", "brightmagenta": "#bb9af7",
-        "brightcyan": "#7dcfff", "brightwhite": "#ffffff",
+    # (vt102 mirasından: "brown" aslında sarıdır) palet tokenlarına eşlenir.
+    _ANSI_TOKENS = {
+        "black": "bg", "red": "red", "green": "green", "brown": "yellow",
+        "blue": "blue", "magenta": "purple", "cyan": "cyan", "white": "fg",
+        "brightblack": "border", "brightred": "red", "brightgreen": "green",
+        "brightbrown": "yellow", "brightblue": "blue", "brightmagenta": "purple",
+        "brightcyan": "cyan", "brightwhite": "fg_bright",
     }
-    DEFAULT_FG = QColor("#c0caf5")
-    DEFAULT_BG = QColor("#16161e")
 
     _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
 
@@ -46,21 +47,33 @@ class TerminalView(QWidget):
         Qt.Key.Key_Delete: b"\x1b[3~", Qt.Key.Key_Insert: b"\x1b[2~",
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, rows=ROWS, argv=None, title=None, cwd=None, parent=None):
         super().__init__(parent)
+        self.rows = rows
+        self.command_title = title   # None -> shell sekmesi
+        self.exit_code = None
+        self._finished = False
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._process = TerminalProcess(rows=self.ROWS, cols=80, parent=self)
+        self._process = TerminalProcess(rows=self.rows, cols=80, argv=argv,
+                                        cwd=cwd, parent=self)
         self._process.output_ready.connect(self.update)
         self._process.finished.connect(self.update)
+        self._process.exited.connect(self._on_exited)
 
     # --- Boyut ---
 
+    def set_rows(self, rows):
+        """ Satır sayısını değiştirir. Yüksekliği ve PTY boyutunu yeniden
+        ölçmek panelin işi: apply_font'u o çağırıyor (bkz.
+        TerminalPanel.apply_settings). """
+        self.rows = rows
+
     def apply_font(self, font):
         """ Panelden gelen (editörle aynı) fontu uygular ve yüksekliği tam
-        9 satıra sabitler. """
+        satır sayısına sabitler. """
         self.setFont(font)
         line_height = self.fontMetrics().lineSpacing()
-        self.setFixedHeight(self.ROWS * line_height + 2 * self.PADDING)
+        self.setFixedHeight(self.rows * line_height + 2 * self.PADDING)
         self._recompute_cols()
 
     def _recompute_cols(self):
@@ -68,7 +81,7 @@ class TerminalView(QWidget):
         if char_width <= 0:
             return
         available = max(char_width, self.width() - 2 * self.PADDING)
-        self._process.resize(self.ROWS, max(1, available // char_width))
+        self._process.resize(self.rows, max(1, available // char_width))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -79,7 +92,11 @@ class TerminalView(QWidget):
         # Gizliyken layout resizeEvent üretmeyebilir; tekrar görünür olunca
         # savunmacı biçimde yeniden hesapla.
         self._recompute_cols()
-        if not self._process.is_running():
+        # DİKKAT: '_finished' koşulu olmadan, biten bir komut sekmesi panel
+        # ':term' ile gizlenip yeniden açıldığında komutu KENDİLİĞİNDEN
+        # tekrar çalıştırır — 'pio upload' için bu, gerçek karta yeniden
+        # yazmak demek.
+        if not self._process.is_running() and not self._finished:
             self._process.start()
         self.setFocus()
 
@@ -87,6 +104,49 @@ class TerminalView(QWidget):
 
     def shell_name(self):
         return os.path.basename(os.environ.get("SHELL", "/bin/bash"))
+
+    def _on_exited(self, exit_code):
+        self._finished = True
+        self.exit_code = exit_code
+        self.update()
+        self.command_finished.emit()
+
+    def is_finished(self):
+        return self._finished
+
+    def title(self):
+        """ Sekme etiketi: shell sekmesinde kabuğun adı, komut sekmesinde
+        verilen başlık ve süreç bitince sonucu.
+
+        DİKKAT: sekme eşleştirmesi (TerminalPanel._find_command_tab) bu SÜSLÜ
+        metne değil command_title'a bakar; yoksa 'pio build ✓' ile 'pio build'
+        eşleşmez ve her derleme yeni sekme açar. """
+        if self.command_title is None:
+            return self.shell_name()
+        if not self._finished:
+            return self.command_title
+        return (f"{self.command_title} ✓" if self.exit_code == 0
+                else f"{self.command_title} ✗ ({self.exit_code})")
+
+    def start_now(self):
+        """ Sekmenin görünür olmasını beklemeden süreci başlatır (komut
+        sekmeleri). Ölçü ÖNCE alınır: PTY boyutu start() sırasında kurulur,
+        sonra hesaplamak ilk çıktıyı yanlış genişlikte sarmalar. """
+        self._recompute_cols()
+        if not self._process.is_running():
+            self._process.start()
+
+    def restart(self, argv, cwd=None):
+        """ Aynı sekmede yeni bir süreç (K4: ':pio build' ikinci kez). Eski
+        süreç TerminalProcess.close() ile (SIGHUP, gerekirse SIGKILL)
+        kapatılır; pyte ekranı start() içinde sıfırdan kurulur. """
+        self._process.close()
+        self._process.argv = argv
+        self._process.cwd = cwd
+        self._finished = False
+        self.exit_code = None
+        self.start_now()
+        self.command_finished.emit()   # başlıktaki ✓/✗ eki temizlensin
 
     def shutdown(self):
         self._process.close()
@@ -138,12 +198,22 @@ class TerminalView(QWidget):
         char_width = metrics.horizontalAdvance("0")
         ascent = metrics.ascent()
 
+        # Paletteki 17 tokenin QColor'ını bu KAREDE bir kez kuruyoruz.
+        # Eskiden her hücre kendi _resolve_one çağrısında theme.color(...) +
+        # QColor(hex) ayrıştırması yapıyordu (80x9'luk varsayılan ekranda bile
+        # hücre başına iki, üstelik _resolve_colors karşılaştırma için ÜÇÜNCÜ
+        # bir QColor daha kuruyordu) -- kod incelemesi Bulgu 3, ~7.6x'lik
+        # yavaşlama. Kareler arası ÖNBELLEKLEMİYORUZ: bu sözlük her
+        # paintEvent'te yeniden kuruluyor ki bir palet değişikliği (':reload')
+        # bir SONRAKİ karede hemen görünsün.
+        palette_colors = {token: QColor(hex_value) for token, hex_value in theme.palette().items()}
+
         for y in range(screen.lines):
             row = screen.buffer[y]
             base_y = self.PADDING + y * line_height
             for x in range(screen.columns):
                 cell = row[x]
-                fg, bg = self._resolve_colors(cell)
+                fg, bg = self._resolve_colors(cell, palette_colors)
                 cx = self.PADDING + x * char_width
                 if bg is not None:
                     painter.fillRect(cx, base_y, char_width, line_height, bg)
@@ -155,23 +225,34 @@ class TerminalView(QWidget):
         if not cursor.hidden and self.hasFocus():
             cx = self.PADDING + cursor.x * char_width
             cy = self.PADDING + cursor.y * line_height
-            painter.fillRect(cx, cy, char_width, line_height, self.DEFAULT_FG)
+            painter.fillRect(cx, cy, char_width, line_height, palette_colors["fg"])
 
-    def _resolve_colors(self, cell):
-        fg = self._resolve_one(cell.fg, self.DEFAULT_FG)
-        bg = self._resolve_one(cell.bg, self.DEFAULT_BG)
+    def _ansi_color(self, name, default_token, palette_colors):
+        """ pyte'ın verdiği renk adını (ya da 'default'ı) geçerli paletteki
+        tokene çevirir. palette_colors bu KAREnin başında paintEvent
+        tarafından kurulan QColor önbelleği — böylece ':reload' bir sonraki
+        paintEvent'te yine güncel çıkar, ama hücre başına yeniden
+        theme.color(...) + QColor(hex) ayrıştırması gerekmez. """
+        token = self._ANSI_TOKENS.get(name)
+        return palette_colors[token if token else default_token]
+
+    def _resolve_colors(self, cell, palette_colors):
+        fg = self._resolve_one(cell.fg, "fg", palette_colors)
+        bg = self._resolve_one(cell.bg, "bg_dark", palette_colors)
         if cell.reverse:
             fg, bg = bg, fg
-        return fg, (None if bg == self.DEFAULT_BG else bg)
+        return fg, (None if bg == palette_colors["bg_dark"] else bg)
 
-    def _resolve_one(self, value, default):
-        if value == "default":
-            return default
-        if value in self._ANSI_COLORS:
-            return QColor(self._ANSI_COLORS[value])
+    def _resolve_one(self, value, default_token, palette_colors):
+        # pyte, 256-renk/truecolor SGR kodlarını (ör. "\x1b[38;2;r;g;bm")
+        # 6 haneli hex string olarak verir; bu, hiçbir isimli ANSI rengiyle
+        # (en kısası 3 harf, ama hiçbiri 6 harf değil) çakışmaz, palet
+        # tokenlarının dışında kalır ve olduğu gibi çizilir. Bunlar palet
+        # önbelleğinde YOK (keyfi/sonsuz değer uzayı); yalnız bunlar için
+        # hücre başına bir QColor kurulmaya devam eder.
         if len(value) == 6:
             return QColor(f"#{value}")
-        return default
+        return self._ansi_color(value, default_token, palette_colors)
 
 
 class TerminalPanel(QWidget):
@@ -193,6 +274,7 @@ class TerminalPanel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         self._font = None
+        self._rows = TerminalView.ROWS
 
         self.tab_bar = QTabBar()
         self.tab_bar.setObjectName("terminalTabBar")
@@ -241,7 +323,47 @@ class TerminalPanel(QWidget):
     # --- Sekmeler ---
 
     def new_tab(self):
-        view = TerminalView()
+        """ ':termnew' / Alt+Shift+N — her zaman yeni bir SHELL sekmesi. """
+        return self._add_view(TerminalView(rows=self._rows))
+
+    def run_command(self, argv, title, cwd=None):
+        """ Bir komutu kendi sekmesinde çalıştırır (':pio build'). Aynı
+        başlıkla açık bir komut sekmesi varsa yeni sekme açılmaz, o sekme
+        yeniden kullanılır (K4). """
+        index = self._find_command_tab(title)
+        if index is None:
+            view = self._add_view(
+                TerminalView(rows=self._rows, argv=argv, title=title, cwd=cwd))
+            self.show()
+            self._activate_layout()
+            view.start_now()
+        else:
+            view = self.stack.widget(index)
+            self.tab_bar.setCurrentIndex(index)
+            self.show()
+            self._activate_layout()
+            view.restart(argv, cwd)
+
+        self._relabel_tabs()
+        self._focus_current_view()
+        return view
+
+    def _find_command_tab(self, title):
+        """ Süslenmemiş başlığa göre arar (bkz. TerminalView.title). """
+        for i in range(self.stack.count()):
+            if self.stack.widget(i).command_title == title:
+                return i
+        return None
+
+    def _activate_layout(self):
+        """ Yeni eklenen sekmenin geometrisi henüz hesaplanmamış olabilir;
+        süreci başlatmadan önce layout'u zorlayarak sütun sayısını doğru
+        ölçüyoruz (PTY boyutu start()'ta kuruluyor). """
+        self.layout().activate()
+
+    def _add_view(self, view):
+        """ Sekme kurulumunun ortak yolu: shell sekmesi de komut sekmesi de
+        buradan geçer. """
         if self._font is not None:
             view.apply_font(self._font)
 
@@ -250,6 +372,7 @@ class TerminalPanel(QWidget):
         view.close_tab_requested.connect(self.close_current_tab)
         view.next_tab_requested.connect(lambda: self.switch_tab(1))
         view.prev_tab_requested.connect(lambda: self.switch_tab(-1))
+        view.command_finished.connect(self._relabel_tabs)
 
         index = self.stack.addWidget(view)
         self.tab_bar.addTab("")
@@ -286,7 +409,7 @@ class TerminalPanel(QWidget):
     def _relabel_tabs(self):
         for i in range(self.tab_bar.count()):
             view = self.stack.widget(i)
-            self.tab_bar.setTabText(i, f"{i + 1}: {view.shell_name()}")
+            self.tab_bar.setTabText(i, f"{i + 1}: {view.title()}")
 
     def _focus_current_view(self, *_args):
         view = self.stack.currentWidget()
@@ -305,9 +428,22 @@ class TerminalPanel(QWidget):
             self.stack.widget(i).apply_font(self._font)
         self._recompute_height()
 
+    def apply_settings(self, terminal_settings):
+        """ Ayar dosyasındaki [terminal] bölümü. Açık oturumlar kapanmadan
+        yeniden boyutlanır. """
+        self._rows = terminal_settings["rows"]
+        for i in range(self.stack.count()):
+            view = self.stack.widget(i)
+            view.set_rows(self._rows)
+            if self._font is not None:
+                # Yükseklik ve PTY satır sayısı fontla birlikte ölçülüyor.
+                view.apply_font(self._font)
+        self._recompute_height()
+
     def _recompute_height(self):
-        """ Panel yüksekliği = sekme çubuğu + 9 satırlık terminal alanı.
-        Terminalin kendisi her zaman tam 9 satır kalır. """
+        """ Panel yüksekliği = sekme çubuğu + terminal alanı. Terminalin
+        kendi satır sayısı ayar dosyasındaki [terminal] rows değerini takip
+        eder (varsayılan 9). """
         view = self.stack.currentWidget()
         if view is None or self._font is None:
             return
