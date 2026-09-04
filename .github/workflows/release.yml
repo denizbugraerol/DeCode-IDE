@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write        # gh release create için
+
+jobs:
+  linux:
+    # Bilinçli olarak 'latest' DEĞİL: binary, üzerinde derlendiği glibc'yi
+    # taban alır. Eski image = düşük taban = daha çok dağıtımda çalışır.
+    # Bu image emekliye ayrılmışsa en eski mevcut olana düş ve README'deki
+    # glibc tabanını güncelle.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Qt sistem kütüphaneleri ve fontlar
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 libgl1 libdbus-1-3 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
+            fontconfig fonts-dejavu-core fonts-liberation
+
+      - name: Bağımlılıklar
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build
+        run: python -m PyInstaller --clean --noconfirm packaging/decode.spec
+
+      # Bozuk bir binary yayınlanmasın: bu adım kırılırsa Release HİÇ
+      # oluşturulmaz. Tag 'v0.1.0', binary çıktısı 'DeCode IDE 0.1.0' --
+      # karşılaştırma baştaki 'v' atılarak yapılıyor, yoksa her koşuda kırılır.
+      - name: Duman testi
+        run: |
+          BINARY=$(ls dist/DeCode-*)
+          chmod +x "$BINARY"
+          ls -lh "$BINARY"
+
+          # Başarısızlıklar AÇIKÇA 'exit 1' ile bildiriliyor: kabuğun 'set -e'
+          # davranışına güvenen bir kapı, son komut başarılı olduğunda sessizce
+          # açık kalır. Bu adım bozuk binary'nin yayınlanmasını engelleyen TEK
+          # mekanizma.
+          if ! CIKTI=$(QT_QPA_PLATFORM=offscreen "$BINARY" --version); then
+            echo "::error title=Duman testi::binary çalışmadı"
+            exit 1
+          fi
+
+          BEKLENEN="DeCode IDE ${GITHUB_REF_NAME#v}"
+          echo "çıktı   : $CIKTI"
+          echo "beklenen: $BEKLENEN"
+          if [ "$CIKTI" != "$BEKLENEN" ]; then
+            echo "::error title=Duman testi::sürüm uyuşmuyor -- core/version.py ile tag farklı"
+            exit 1
+          fi
+
+      - name: Release oluştur
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/DeCode-* \
+            --title "DeCode IDE $GITHUB_REF_NAME" \
+            --notes "$(cat <<'NOTLAR'
+          ## Kurulum
+
+          ```bash
+          chmod +x DeCode-*-x86_64
+          ./DeCode-*-x86_64
+          ```
+
+          Python, pip ya da bağımlılık kurulumu gerekmez.
+
+          ## Gereksinimler
+
+          - Linux x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora, Arch)
+          - Wayland ya da X11 oturumu
+
+          `/tmp` sisteminizde `noexec` ise: `TMPDIR=~/.cache ./DeCode-*-x86_64`
+
+          Değişiklikler için `CHANGELOG.md`'ye bakın.
+          NOTLAR
+          )"

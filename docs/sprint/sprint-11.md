@@ -12,8 +12,8 @@ yayınlamak (v0.1.0) ve bunu her tag'de tekrarlayan bir CI hattına bağlamak.
 - [x] Tek dosya PyInstaller yapılandırması — `packaging/decode.spec`
 - [x] Monospace yedeğinin ölçülerek doğrulanması — `ui/theme.py`
 - [x] Her push'ta pytest — `.github/workflows/tests.yml`
-- [ ] `v*` tag'inde build + duman testi + Release — `.github/workflows/release.yml`
-- [ ] README, CHANGELOG, Roadmap güncellemesi
+- [x] `v*` tag'inde build + duman testi + Release — `.github/workflows/release.yml`
+- [x] README, CHANGELOG, Roadmap güncellemesi
 - [ ] `main`'e merge, `v0.1.0` tag'i, yayın
 
 ## Teknik notlar
@@ -51,6 +51,14 @@ CI'ın ilk iki koşusu tam olarak bu yüzden kırıldı.
 elle yazmıştım, yani runner'da olmayan şeyi taklide hediye etmiştim. Takma
 adsız taklit gerçeği gösterdi. Ortam taklit edilirken taklidin neyi *fazladan*
 sağladığı, neyi eksik bıraktığı kadar önemli.
+
+**Duman testi kapısı `set -e`'ye güvenmemeli.** İlk yazımda sürüm
+karşılaştırması `test A = B` ile yapılıyor ve ardından `ls -lh` geliyordu;
+betiğin çıkış kodunu son komut belirlediği için yanlış sürümlü ve hiç
+açılmayan binary'ler kapıdan GEÇİYORDU. Üç durumla (doğru sürüm / yanlış
+sürüm / çöken binary) yerelde sınandı ve açık `exit 1`'lere çevrildi. Bozuk
+binary'nin yayınlanmasını engelleyen tek mekanizma bu adım olduğu için
+kabuk davranışına bağlı kalamaz.
 
 **CI log'ları okunamıyor, annotation'lar okunabiliyor.** İş log'ları GitHub
 API'sinden kimlik doğrulaması ister; annotation'lar public depolarda
