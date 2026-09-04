@@ -1,0 +1,7 @@
+*.claude
+CLAUDE.md
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.superpowers/
