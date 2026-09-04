@@ -27,7 +27,20 @@ jobs:
       - name: Bağımlılıklar
         run: pip install -r requirements-dev.txt
 
+      # Kırılan testleri ::error:: ile annotation olarak yayınlıyoruz: iş
+      # log'ları GitHub API'sinden kimlik doğrulaması ister, annotation'lar
+      # public depolarda doğrulamasız okunur. Bir koşunun neden kırıldığını
+      # 'gh' kurulu olmayan bir makineden de görebilmek için.
       - name: Testler
-        run: python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
+        run: |
+          set +e
+          python -m pytest -q --tb=short -rf > pytest-cikti.txt 2>&1
+          KOD=$?
+          cat pytest-cikti.txt
+          if [ $KOD -ne 0 ]; then
+            OZET=$(grep -E "^(FAILED|ERROR)" pytest-cikti.txt | head -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=pytest kırıldı::${OZET}"
+          fi
+          exit $KOD
