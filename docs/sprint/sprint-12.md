@@ -55,6 +55,16 @@ koda atlama" diyordu; araya giren her iş bu numaraları kaydırıyordu (bu
 ikinci oluşuydu). Artık numara iş yapıldığında veriliyor, plan maddeleri
 yalnız "açık" diyor.
 
+**macOS'ta kırılan iki test, uygulamanın değil testlerin kusuruydu.**
+İlk CI koşusunda 211 testin 209'u macOS'ta geçti — gerçek PTY testleri dahil,
+yani gömülü terminal orada çalışıyor. Kırılan ikisi `/bin/false`
+kullanıyordu; macOS'ta o dosya `/usr/bin`'de, `/bin`'de değil. Orada exec
+başarısız olup child 127 ('command not found') dönüyor, test de `✗ (1)`
+yerine `✗ (127)` görüyor. Uygulamanın davranışı doğruydu. `/bin/sh -c
+'exit 1'` ile değiştirildi (POSIX, her iki sistemde var). Aynı taramada
+çalıştırılmayan bir `/bin/true` yer tutucusu da bulundu: kırılmıyordu ama
+kopyalayanı yanıltacak bir tuzaktı.
+
 ## Devreden
 - CI'da yeşil doğrulama ve macOS'lu ilk sürümün çıkarılması
 - Intel Mac (`macos-13` matris satırı)

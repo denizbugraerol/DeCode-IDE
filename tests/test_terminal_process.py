@@ -26,7 +26,11 @@ def test_argv_ile_komut_calisir_ve_ciktisi_ekranda(qapp, bekle):
 
 
 def test_basarisiz_komutun_cikis_kodu(qapp, bekle):
-    surec, kodlar = _calistir(bekle, ["/bin/false"])
+    # '/bin/false' DEĞİL: macOS'ta o dosya /usr/bin'de, /bin'de yok. Orada
+    # exec başarısız olur ve child 127 döner ('command not found'), yani test
+    # ölçmek istediği şeyi değil, kendi taşınabilirsizliğini ölçer.
+    # '/bin/sh' her iki sistemde de POSIX güvencesiyle var.
+    surec, kodlar = _calistir(bekle, ["/bin/sh", "-c", "exit 1"])
     try:
         assert kodlar == [1]
         assert surec.exit_code == 1
@@ -67,6 +71,8 @@ def test_baslamamis_surecte_olcu_saklanir(qapp):
     """ PTY boyutu start() sırasında kuruluyor; 'önce ölç, sonra başlat'
     sırası çalışsın diye resize() koşmayan süreçte de rows/cols'u güncellemeli
     (yoksa komut sekmesi 80 sütunla başlar ve çıktı yanlış sarmalanır). """
-    surec = TerminalProcess(rows=6, cols=40, argv=["/bin/true"])
+    # argv hiç çalıştırılmıyor (süreç başlatılmıyor), ama macOS'ta var
+    # olmayan bir yolu örnek bırakmayalım -- kopyalayan yanılır.
+    surec = TerminalProcess(rows=6, cols=40, argv=["/bin/sh", "-c", "exit 0"])
     surec.resize(9, 120)
     assert (surec.rows, surec.cols) == (9, 120)
