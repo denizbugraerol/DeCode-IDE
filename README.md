@@ -14,17 +14,39 @@ paletine sadık kalır**.
 ### Hazır çalıştırılabilir (önerilen)
 
 [Releases](https://github.com/denizbugraerol/DeCode-IDE/releases) sayfasından
-son sürümü indirin:
+sisteminize uygun dosyayı indirin. Python, pip ya da bağımlılık kurulumu
+gerekmez.
+
+**Linux (x86_64):**
 
 ```bash
-chmod +x DeCode-v0.1.1-x86_64
-./DeCode-v0.1.1-x86_64
+chmod +x DeCode-*-linux-x86_64
+./DeCode-*-linux-x86_64
 ```
 
-Python, pip ya da bağımlılık kurulumu gerekmez.
+Gereksinim: glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora, Arch), Wayland ya
+da X11 oturumu.
 
-**Gereksinimler:** Linux x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+,
-Fedora, Arch), Wayland ya da X11 oturumu.
+**macOS (Apple Silicon):**
+
+```bash
+chmod +x DeCode-*-macos-arm64
+xattr -d com.apple.quarantine DeCode-*-macos-arm64
+./DeCode-*-macos-arm64
+```
+
+Binary imzasız olduğu için macOS onu ilk açılışta karantinaya alır; yukarıdaki
+`xattr` satırı bunu kaldırır (alternatif: Finder'da sağ tık → Aç). Kod
+imzalama ve notarization bilinçli olarak yapılmıyor — ücretli bir Apple
+Developer üyeliği gerektirir ve uygulamanın çalışması için şart değildir.
+
+> macOS derlemesi otomatik testlerden geçiyor (gerçek PTY testleri dahil),
+> ancak elle denenmedi: projenin bir Mac'i yok. Geri bildirim memnuniyetle
+> karşılanır.
+
+Intel Mac'ler ve Windows için hazır dosya yok. Windows'ta uygulama şu an hiç
+çalışmıyor: gömülü terminal `pty`/`fcntl`/`termios` kullanıyor ve bunların
+Windows karşılığı (ConPTY) henüz yazılmadı.
 
 ### Kaynaktan
 
@@ -37,12 +59,12 @@ python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt
 
 ### Sorun giderme
 
-Tek dosya çalıştırılabilir, kendini açmak için `/tmp` kullanır. Sertleştirilmiş
+Tek dosya çalıştırılabilir, kendini açmak için `/tmp` kullanır (Linux). Sertleştirilmiş
 bazı sistemlerde `/tmp` `noexec` bağlıdır ve uygulama açılmaz; o durumda başka
 bir dizin gösterin:
 
 ```bash
-TMPDIR=~/.cache ./DeCode-v0.1.1-x86_64
+TMPDIR=~/.cache ./DeCode-*-linux-x86_64
 ```
 
 ## Modlar

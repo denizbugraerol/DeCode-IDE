@@ -4,7 +4,14 @@ on: [push, pull_request]
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    strategy:
+      # Bir platformun kırılması ötekini iptal etmesin: macOS yeni ve
+      # doğrulanmamış, Linux ise kanıtlanmış -- ikisinin sonucunu da görmek
+      # istiyoruz.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -13,10 +20,11 @@ jobs:
           python-version: "3.12"
 
       # PyQt6 wheel'i Qt kütüphanelerini getirir ama onların bağlı olduğu
-      # SİSTEM kütüphaneleri runner'da kurulu değil. Bunlar olmadan testler
-      # 'could not load the Qt platform plugin' ile kırılır -- offscreen
-      # platformda bile.
-      - name: Qt sistem kütüphaneleri
+      # SİSTEM kütüphaneleri Linux runner'ında kurulu değil. Bunlar olmadan
+      # testler 'could not load the Qt platform plugin' ile kırılır --
+      # offscreen platformda bile. macOS'ta Qt bunlara ihtiyaç duymaz.
+      - name: Qt sistem kütüphaneleri ve fontlar (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -25,12 +33,12 @@ jobs:
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             fontconfig fonts-dejavu-core fonts-liberation
 
-      # Runner'da varsayılan olarak MONOSPACE font yok: DejaVu Sans (orantılı)
-      # var ama styleHint(Monospace) çözecek bir aile bulamıyor. Uygulama bir
-      # kod editörü; font testleri haklı olarak sabit genişlikli bir font
-      # bulunmasını bekliyor. Kurulumu doğruluyoruz ki eksilirse test
-      # kırılmadan önce burada anlaşılsın.
-      - name: Monospace font var mı
+      # Linux runner'ında varsayılan olarak MONOSPACE font yok ve
+      # styleHint(Monospace) fontconfig'in takma adına güveniyor. macOS'ta
+      # fontconfig hiç yok (Qt CoreText kullanır), o yüzden bu kontrol
+      # yalnız Linux'ta anlamlı.
+      - name: Monospace font var mı (Linux)
+        if: runner.os == 'Linux'
         run: |
           fc-list : family spacing | grep -i "mono" | head -5
           fc-match monospace
@@ -40,8 +48,7 @@ jobs:
 
       # Kırılan testleri ::error:: ile annotation olarak yayınlıyoruz: iş
       # log'ları GitHub API'sinden kimlik doğrulaması ister, annotation'lar
-      # public depolarda doğrulamasız okunur. Bir koşunun neden kırıldığını
-      # 'gh' kurulu olmayan bir makineden de görebilmek için.
+      # public depolarda doğrulamasız okunur.
       - name: Testler
         env:
           QT_QPA_PLATFORM: offscreen
@@ -52,6 +59,6 @@ jobs:
           cat pytest-cikti.txt
           if [ $KOD -ne 0 ]; then
             OZET=$(grep -E "^(FAILED|ERROR)" pytest-cikti.txt | head -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-            echo "::error title=pytest kırıldı::${OZET}"
+            echo "::error title=pytest kırıldı (${{ matrix.os }})::${OZET}"
           fi
           exit $KOD

@@ -10,12 +10,21 @@ Designer, ShaderTools, Quick3D, Pdf var. QtNetwork/QtDBus/QtOpenGL DIŞLANMIYOR:
 Qt Widgets yığını bunları çalışma anında dolaylı arayabilir, kazancı riskine
 değmez. """
 import os
+import platform
 import sys
 
 ROOT = os.path.dirname(SPECPATH)          # noqa: F821 - PyInstaller enjekte eder
 sys.path.insert(0, ROOT)
 
 from core.version import __version__      # noqa: E402
+
+# Çıktı adı platformu ve mimariyi taşır. PyInstaller çapraz derleme yapamaz --
+# her dosya üzerinde derlendiği sistemi anlatır, o yüzden adı buradan
+# türetmek doğru: 'DeCode-v0.1.2-linux-x86_64', 'DeCode-v0.1.2-macos-arm64'.
+_OS = {"linux": "linux", "darwin": "macos", "win32": "windows"}.get(
+    sys.platform, sys.platform)
+_ARCH = platform.machine()                # x86_64 / arm64
+CIKTI_ADI = f"DeCode-v{__version__}-{_OS}-{_ARCH}"
 
 
 a = Analysis(
@@ -50,7 +59,7 @@ exe = EXE(                                 # noqa: F821
     a.binaries,
     a.datas,
     [],
-    name=f"DeCode-v{__version__}-x86_64",
+    name=CIKTI_ADI,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

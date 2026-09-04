@@ -15,7 +15,9 @@ def test_komut_sekmesi_baslik_ve_basarili_cikis(pencere, bekle):
 
 
 def test_basarisiz_komut_sekmede_isaretlenir(pencere, bekle):
-    view = pencere.terminal_panel.run_command(["/bin/false"], "pio upload")
+    # '/bin/false' macOS'ta yok (/usr/bin'de); orada exec 127 döndürür ve
+    # test başlıktaki '✗ (1)' yerine '✗ (127)' görür.
+    view = pencere.terminal_panel.run_command(["/bin/sh", "-c", "exit 1"], "pio upload")
     assert bekle(view.is_finished)
     assert view.title() == "pio upload ✗ (1)"
 

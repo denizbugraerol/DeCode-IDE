@@ -1,5 +1,21 @@
 # Değişiklik Günlüğü
 
+## v0.2.0 — 04 Eyl 2026
+
+### Eklendi
+- **macOS (Apple Silicon) derlemesi.** Release'ler artık iki dosya içeriyor:
+  `DeCode-*-linux-x86_64` ve `DeCode-*-macos-arm64`. Test süiti de her
+  push'ta hem Linux hem macOS runner'ında koşuyor.
+
+### Değişti
+- Varlık adları platform taşıyor: `DeCode-v0.1.1-x86_64` →
+  `DeCode-vX.Y.Z-linux-x86_64`. İki platform olunca kaçınılmazdı.
+- `QT_QPA_PLATFORM` yalnız Linux'ta ve yalnız kullanıcı bir değer
+  belirtmemişse ayarlanıyor. Eskiden koşulsuz `wayland;xcb` yazılıyordu;
+  macOS'ta bu, olmayan plugin'lerin aranmasına yol açardı. Yan etkisi:
+  artık `QT_QPA_PLATFORM=xcb ./DeCode` gerçekten X11 ile çalıştırıyor
+  (eskiden sessizce eziliyordu).
+
 ## v0.1.1 — 04 Eyl 2026
 
 ### Eklendi
