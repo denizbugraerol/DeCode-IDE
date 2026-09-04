@@ -10,7 +10,7 @@ paletine sadık kalır**.
 
 Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) bakın.
 
-## Bugünkü durum — v0.1.1
+## Bugünkü durum — v0.2.0
 
 Aşağıdaki "Sürüm kilometre taşları" tablosundaki numaralar **iç faz
 kilometre taşlarıdır**; yayınlanan sürüm numaralarıyla aynı şey değildir.

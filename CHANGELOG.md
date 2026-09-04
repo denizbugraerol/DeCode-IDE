@@ -1,6 +1,6 @@
 # Değişiklik Günlüğü
 
-## Yayınlanmamış
+## v0.2.0 — 04 Eyl 2026
 
 ### Eklendi
 - **macOS (Apple Silicon) derlemesi.** Release'ler artık iki dosya içeriyor:

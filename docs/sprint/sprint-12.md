@@ -1,5 +1,5 @@
 # Sprint 12 — macOS (Apple Silicon) derlemesi
-**Tarih:** 04 Eyl 2026 · **Durum:** Aktif · **Commit(ler):** —
+**Tarih:** 04 Eyl 2026 · **Durum:** Tamamlandı · **Commit(ler):** —
 
 ## Hedef
 Release hattını çok platformlu hale getirmek: aynı tag'den Linux ve macOS
@@ -13,7 +13,7 @@ koşsun.
 - [x] `tests.yml` matrisi: `ubuntu-latest` + `macos-latest`
 - [x] `release.yml` matrisi + varlıkları tek Release'de toplayan ayrı job
 - [x] README / CHANGELOG / Roadmap
-- [ ] CI'da yeşil doğrulama ve sürüm çıkarma
+- [x] CI'da yeşil doğrulama (macOS ve Linux: 211/211) ve v0.2.0 sürümü
 
 ## Teknik notlar
 
