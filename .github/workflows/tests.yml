@@ -1,0 +1,57 @@
+name: Testler
+
+on: [push, pull_request]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # PyQt6 wheel'i Qt kütüphanelerini getirir ama onların bağlı olduğu
+      # SİSTEM kütüphaneleri runner'da kurulu değil. Bunlar olmadan testler
+      # 'could not load the Qt platform plugin' ile kırılır -- offscreen
+      # platformda bile.
+      - name: Qt sistem kütüphaneleri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 libgl1 libdbus-1-3 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
+            fontconfig fonts-dejavu-core fonts-liberation
+
+      # Runner'da varsayılan olarak MONOSPACE font yok: DejaVu Sans (orantılı)
+      # var ama styleHint(Monospace) çözecek bir aile bulamıyor. Uygulama bir
+      # kod editörü; font testleri haklı olarak sabit genişlikli bir font
+      # bulunmasını bekliyor. Kurulumu doğruluyoruz ki eksilirse test
+      # kırılmadan önce burada anlaşılsın.
+      - name: Monospace font var mı
+        run: |
+          fc-list : family spacing | grep -i "mono" | head -5
+          fc-match monospace
+
+      - name: Bağımlılıklar
+        run: pip install -r requirements-dev.txt
+
+      # Kırılan testleri ::error:: ile annotation olarak yayınlıyoruz: iş
+      # log'ları GitHub API'sinden kimlik doğrulaması ister, annotation'lar
+      # public depolarda doğrulamasız okunur. Bir koşunun neden kırıldığını
+      # 'gh' kurulu olmayan bir makineden de görebilmek için.
+      - name: Testler
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set +e
+          python -m pytest -q --tb=short -rf > pytest-cikti.txt 2>&1
+          KOD=$?
+          cat pytest-cikti.txt
+          if [ $KOD -ne 0 ]; then
+            OZET=$(grep -E "^(FAILED|ERROR)" pytest-cikti.txt | head -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=pytest kırıldı::${OZET}"
+          fi
+          exit $KOD

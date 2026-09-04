@@ -76,3 +76,17 @@ def test_editor_fontu_da_sabit_genislikli(pencere):
     zaten bir kod editöründe hizalama buna bağlı. """
     genislikler = set(_genislikler(pencere.editor.font()))
     assert len(genislikler) == 1
+
+
+def test_veritabani_taramasi_sabit_genislikli_aile_bulur(qapp):
+    """ styleHint(Monospace) fontconfig'in 'monospace' takma adına güvenir; o
+    takma ad yoksa (minimal sistem, konteyner, CI runner'ı) orantılı bir aile
+    döner. Son çare tarama gerçekten sabit genişlikli bir aile bulmalı. """
+    from PyQt6.QtGui import QFont
+
+    aile = theme._first_monospace_family(15)
+
+    assert aile is not None
+    font = QFont(aile)
+    font.setPixelSize(15)
+    assert len(set(_genislikler(font))) == 1

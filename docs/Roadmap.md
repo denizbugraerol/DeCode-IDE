@@ -10,7 +10,14 @@ paletine sadık kalır**.
 
 Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) bakın.
 
-## Bugünkü durum — v0.2
+## Bugünkü durum — v0.1.0 (ilk yayınlanan sürüm)
+
+Aşağıdaki "Sürüm kilometre taşları" tablosundaki numaralar **iç faz
+kilometre taşlarıdır**; yayınlanan sürüm numaralarıyla aynı şey değildir.
+Depodan yayınlanan ilk sürüm **v0.1.0**'dır ([Sprint 11](sprint/sprint-11.md)):
+tek dosya Linux çalıştırılabiliri. Yayınlanan sürümler için
+[CHANGELOG.md](../CHANGELOG.md).
+
 
 Çalışan özellikler:
 
@@ -48,8 +55,9 @@ Geçmiş işlerin ayrıntısı için [sprint günlüğüne](sprint/README.md) ba
   ve terminal satır sayısı özelleştirilebiliyor; `:reload` uygulamayı
   kapatmadan yeniden uyguluyor ([Sprint 09](sprint/sprint-09.md))
 - **Test altyapısı** — pytest, `QT_QPA_PLATFORM=offscreen` ile ekransız çalışan
-  183 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
-  [10](sprint/sprint-10.md))
+  197 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
+  [10](sprint/sprint-10.md), [11](sprint/sprint-11.md)); her push'ta GitHub
+  Actions'ta koşuyor
 
 Henüz yok: Vim tarzı düzenleme komutları (`dd`, `yy`, `x`, `o`/`O`, sayı
 önekleri), VISUAL mod, geri al/yinele + `.` ile son komutu tekrar, oturum geri
@@ -108,39 +116,52 @@ yer tutuyor.
   listesi ve `:pio ` tamamlamasıyla.
 - **Kart ve port seçimi** — **tamamlandı**: `platformio.ini` okunup ortamlar
   `:pio env` paletinde listeleniyor, seçim statusline rozetinde duruyor.
-- **`embedded/serial_reader.py`** — açık (Sprint 12): kendi seri monitörümüz
+- **`embedded/serial_reader.py`** — açık (Sprint 13): kendi seri monitörümüz
   (port/baud seçimi, yeniden bağlanma). Bugün `:pio monitor` PlatformIO'nun
   kendi monitörünü çalıştırıyor.
-- **Derleme hatasından koda atlama** — açık (Sprint 11): çıktıdaki
+- **Derleme hatasından koda atlama** — açık (Sprint 12): çıktıdaki
   `dosya:satır` eşleşmelerini yakalayıp ilgili sekmede o satıra gitme.
 
 ## Faz 5 — Dağıtım
 
-- `pyproject.toml` ile kurulabilir paket ve `decode` komutu.
-- Linux masaüstü girdisi (`.desktop`) ve uygulama ikonu.
-- Sürüm etiketleri + kısayol/komut referansının `docs/` altında belgelenmesi.
+- **Tek dosya Linux çalıştırılabiliri** — **tamamlandı**
+  ([Sprint 11](sprint/sprint-11.md)): PyInstaller `--onefile`, GitHub Actions'ta
+  `ubuntu-22.04` üzerinde derleniyor (geliştirici makinesinde değil — binary
+  üzerinde derlendiği glibc'yi taban alır), `v*` tag'i itilince duman
+  testinden geçip GitHub Releases'e yükleniyor.
+- **Sürüm etiketleri + komut/kısayol referansı** — **tamamlandı**: sürümün tek
+  kaynağı `core/version.py`, referans `README.md`'de.
+- **Lisans** — **tamamlandı**: GPL-3.0 (PyQt6 `GPL-3.0-only` olduğu için
+  binary dağıtan bu projenin başka seçeneği yok).
+- `pyproject.toml` ile kurulabilir paket ve `decode` komutu — açık.
+- Linux masaüstü girdisi (`.desktop`), uygulama ikonu ve AppImage — açık.
+- macOS ve Windows — açık; ayrı alt projeler. macOS küçüktür (`pty`/`termios`
+  orada da var), Windows bir port işidir: `core/terminal_process.py` `fcntl`,
+  `pty`, `termios` ve `SIGHUP` kullanıyor, karşılığı ConPTY (`pywinpty`).
 
 ## Teknik borç
 
 | Konu | Durum | Nerede |
 |---|---|---|
 | `__pycache__` deposu kirletiyor | Çözüldü ([Sprint 06](sprint/sprint-06.md)): kural eklendi, 14 `.pyc` takipten çıkarıldı | `.gitignore` |
-| Lint altyapısı yok | Test var (183 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| Lint altyapısı yok | Test var (197 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| CI yok | Çözüldü ([Sprint 11](sprint/sprint-11.md)): her push'ta pytest, `v*` tag'inde release build | `.github/workflows/` |
 | `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
-| Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | Sprint 12 |
+| Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | Sprint 13 |
 | Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
 | `forkpty()` çok iş parçacıklı süreçte | `:ts` taraması sürerken `:term` açmak uyarı üretiyor | `core/terminal_process.py` |
 | Tema kodda sabit | Çözüldü ([Sprint 09](sprint/sprint-09.md)): renkler `ui/theme.py`'deki tek palete taşındı, ayar dosyasının `[colors]` bölümünden özelleştirilebiliyor | `ui/theme.py` |
 
-## Sürüm kilometre taşları
+## Faz kilometre taşları
 
-Tarih verilmiyor; sıra ve çıkış kriteri veriliyor.
+Tarih verilmiyor; sıra ve çıkış kriteri veriliyor. **Bunlar yayınlanan sürüm
+numaraları değildir** — yayınlananlar için [CHANGELOG.md](../CHANGELOG.md).
 
-| Sürüm | Kapsam | Çıkış kriteri |
-|---|---|---|
-| **v0.1** | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride |
-| **v0.2** (bugün) | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor |
-| **v0.3** | Faz 3 | Düzenleme komutları (`dd`/`yy`/`x`/`o`/`O`) + VISUAL mod; ayar dosyası ✅ (Sprint 09), oturum geri yükleniyor |
-| **v0.4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla ✅ ([Sprint 10](sprint/sprint-10.md)); hatadan koda atlama ve kendi seri monitörümüz kaldı |
-| **v1.0** | Faz 5 | Kurulabilir paket ve belgelenmiş komut/kısayol referansı |
+| Kilometre taşı | Kapsam | Çıkış kriteri | Durum |
+|---|---|---|---|
+| **M1** | Faz 0–1 | Python/C++ dosyaları pencereden çıkmadan düzenlenip kaydedilebiliyor, terminal içeride | ✅ |
+| **M2** | Faz 2 | `:ts` ile dosya bulunuyor, dosya içi arama/değiştirme çalışıyor | ✅ |
+| **M3** | Faz 3 | Düzenleme komutları (`dd`/`yy`/`x`/`o`/`O`) + VISUAL mod; ayar dosyası ✅ (Sprint 09), oturum geri yükleniyor | Kısmen |
+| **M4** | Faz 4 | PlatformIO derle/yükle/monitör tek komutla ✅ ([Sprint 10](sprint/sprint-10.md)); hatadan koda atlama ve kendi seri monitörümüz kaldı | Kısmen |
+| **M5** | Faz 5 | Kurulabilir paket ve belgelenmiş komut/kısayol referansı | Kısmen — çalıştırılabilir + referans ✅ ([Sprint 11](sprint/sprint-11.md)), `pyproject.toml` kaldı |

@@ -29,14 +29,22 @@ def test_renk_ayari_stylesheete_gecer(qapp):
 
 def test_font_ayari_stylesheete_gecer(qapp):
     """ Font'u QSS sahipleniyor; ayarın oraya ulaştığını doğruluyoruz. """
+    # Kurulu OLMAYAN bir aile (eski hâlinde "JetBrains Mono") kullanılamaz:
+    # apply_settings artık fontu çözüyor ve QSS istenen aileyi değil ÇÖZÜLMÜŞ
+    # aileyi taşıyor (bkz. ui/theme.resolve_font_family). Kurulu olmayan bir
+    # ad verildiğinde sonuç fontconfig'in ikame tercihine kalırdı; sistemin
+    # kendi mono fontunu sorup onu veriyoruz, böylece test her ortamda aynı
+    # şeyi doğruluyor: geçerli bir font ayarı QSS'e aynen ulaşıyor.
+    mono, _ = theme.resolve_font_family("Kesinlikle Kurulu Olmayan Font", 20)
+
     ayarlar = config.default_settings()
-    ayarlar["editor"]["font_family"] = "JetBrains Mono"
+    ayarlar["editor"]["font_family"] = mono
     ayarlar["editor"]["font_size"] = 20
 
     pencere = IDEWindow(settings=ayarlar)
     try:
         qss = pencere.styleSheet()
-        assert "'JetBrains Mono'" in qss
+        assert f"'{mono}'" in qss
         assert "font-size: 20px" in qss     # editör
         assert "font-size: 16px" in qss     # statusline (-4)
     finally:

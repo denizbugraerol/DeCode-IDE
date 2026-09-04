@@ -3,11 +3,44 @@ import os
 import pty
 import signal
 import struct
+import sys
 import termios
 import time
 
 import pyte
 from PyQt6.QtCore import QObject, QSocketNotifier, pyqtSignal
+
+
+# PyInstaller ile dondurulmuş süreçte bootloader'ın ezdiği, çocuk sürece
+# SIZMAMASI gereken değişkenler. Orijinal değeri "<AD>_ORIG" altında saklar.
+_FROZEN_VARS = ("LD_LIBRARY_PATH", "LD_PRELOAD")
+
+
+def child_environment(env=None, frozen=None):
+    """ PTY çocuğuna verilecek ortam: PyInstaller'ın izleri geri alınır.
+
+    "<AD>_ORIG" varsa "<AD>" ona döner ve _ORIG anahtarı düşer; yoksa donmuş
+    süreçte "<AD>" tamamen silinir (bootloader değeri kabuğa sızmasın).
+    Donmamış süreçte ortam değişmeden geçer.
+
+    Neden gerekiyor: bootloader LD_LIBRARY_PATH'i paketin açıldığı geçici
+    dizine çevirir; pty.fork() ile doğan kabuk bunu miras alırsa içeriden
+    çalıştırılan pio/git/ls paketlenmiş kütüphanelerle çakışır. ':pio build'
+    de bu yoldan geçtiği için bu, uygulamanın varlık sebebine dokunur.
+
+    env ve frozen parametre olarak alınıyor ki bu yol DONMADAN test
+    edilebilsin; aksi halde yalnız yayınlanmış binary'de sınanabilirdi. """
+    result = dict(os.environ if env is None else env)
+    is_frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+
+    for name in _FROZEN_VARS:
+        original = result.pop(f"{name}_ORIG", None)
+        if original is not None:
+            result[name] = original
+        elif is_frozen:
+            result.pop(name, None)
+
+    return result
 
 
 class _PtyBackedScreen(pyte.Screen):
@@ -62,7 +95,7 @@ class TerminalProcess(QObject):
         doğrudan o komutu (':pio build' gibi). """
         if self.is_running():
             return
-        env = dict(os.environ)
+        env = child_environment()
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
 
