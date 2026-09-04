@@ -16,6 +16,8 @@ sözlük verilse bile _current eksiksiz kalır, aksi halde color() sonradan
 boyama sırasında KeyError fırlatabilirdi). """
 from string import Template
 
+from PyQt6.QtGui import QFont, QFontInfo, QFontMetricsF
+
 # Tokyo Night. Bugün altı dosyaya dağılmış 17 rengin tamamı.
 DEFAULT_PALETTE = {
     "bg":        "#1a1b26",   # ana zemin, editör
@@ -79,6 +81,55 @@ def set_palette(new_palette):
     _current.clear()
     _current.update(DEFAULT_PALETTE)
     _current.update(new_palette)
+
+
+# Fontun sabit genişlikli olup olmadığını ÖLÇEREK anlıyoruz; en dar ve en
+# geniş ASCII glif. QFontInfo.fixedPitch()'e güvenilmiyor: gerçekten sabit
+# genişlikli aileler için bile (ör. Noto Sans Mono) False dönebiliyor.
+_MONO_PROBE = ("i", "M")
+
+
+def _probe_font(family, size):
+    """ Ölçüm için, istenen aileden hiçbir ipucu eklenmemiş bir QFont. """
+    font = QFont(family) if family else QFont()
+    font.setPixelSize(size)
+    return font
+
+
+def _is_monospace(font):
+    metrics = QFontMetricsF(font)
+    return len({metrics.horizontalAdvance(ch) for ch in _MONO_PROBE}) == 1
+
+
+def resolve_font_family(family, size):
+    """ İstenen aileyi gerçekten SABİT GENİŞLİKLİ, kurulu bir aileye çevirir.
+    (aile, uyarılar) döndürür — build_palette ile aynı sözleşme; çağıran
+    (IDEWindow.apply_settings) uyarıları basar, uygulama çalışmaya devam eder.
+
+    Neden gerekli: terminal paneli pyte'ın ekranını sabit bir hücre ızgarası
+    olarak çizer (hücre genişliği fontMetrics().horizontalAdvance("0") ile bir
+    kez ölçülür, her karakter kendi hücresine çizilir). İstenen aile kurulu
+    değilse Qt sessizce ORANTILI varsayılanına düşer ve o ızgara bozulur:
+    'm' hücresinden taşıp komşusuna girer, 'i' ise hücresinin yarısını boş
+    bırakır. Varsayılan "Fira Code" pek çok sistemde kurulu olmadığı için bu
+    istisna değil, olağan durumdu.
+
+    İki tuzak:
+      * styleHint(Monospace) TEK BAŞINA yetmez — o yalnız aile BULUNAMAZSA
+        devreye girer. Kurulu ama orantılı bir aile (ör. "Fira Sans")
+        istendiğinde Qt onu memnuniyetle kullanır; bu yüzden geri düşülen
+        font ailesiz kuruluyor.
+      * Karar QFontInfo.fixedPitch() ile verilemez (bkz. _MONO_PROBE). """
+    if _is_monospace(_probe_font(family, size)):
+        return family, []
+
+    fallback = _probe_font(None, size)
+    fallback.setStyleHint(QFont.StyleHint.Monospace)
+    fallback.setFixedPitch(True)
+    resolved = QFontInfo(fallback).family()
+    return resolved, [
+        f"Sabit genişlikli '{family}' fontu bulunamadı; '{resolved}' kullanılıyor."
+    ]
 
 
 def set_font(family, size):

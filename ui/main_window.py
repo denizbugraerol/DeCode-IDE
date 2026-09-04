@@ -527,7 +527,15 @@ class IDEWindow(QMainWindow):
         for warning in warnings:
             print(warning)
         theme.set_palette(palette)
-        theme.set_font(self.settings["editor"]["font_family"], self.settings["editor"]["font_size"])
+        # İstenen font kurulu değilse (varsayılan "Fira Code" pek çok sistemde
+        # değildir) Qt orantılı bir aileye düşer ve terminalin sabit hücre
+        # ızgarası bozulur; resolve_font_family bunu monospace bir aileye
+        # çevirir. Palet gibi: (değer, uyarılar) döner, uyarı basılır.
+        font_family, font_warnings = theme.resolve_font_family(
+            self.settings["editor"]["font_family"], self.settings["editor"]["font_size"])
+        for warning in font_warnings:
+            print(warning)
+        theme.set_font(font_family, self.settings["editor"]["font_size"])
 
         self._apply_theme()
 
@@ -549,8 +557,10 @@ class IDEWindow(QMainWindow):
         """ Geçerli paleti ve fontu pencereye uygular. Palet ui/theme'de;
         burada yalnız üretilen QSS takılıyor. """
         editor_settings = self.settings["editor"]
+        # font_family theme'den okunuyor, ayardan DEĞİL: apply_settings onu
+        # kurulu ve sabit genişlikli bir aileye çözmüş olabilir.
         self.setStyleSheet(theme.stylesheet(
-            theme.palette(), editor_settings["font_family"], editor_settings["font_size"]))
+            theme.palette(), theme.font_family(), editor_settings["font_size"]))
 
         # Terminal '9 satır' yüksekliğini editörün QSS'ten gelen gerçek satır
         # yüksekliğiyle ölçüyor; sekme yoksa ölçecek editör de yok.
