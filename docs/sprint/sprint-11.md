@@ -1,5 +1,5 @@
 # Sprint 11 — Linux tek dosya dağıtımı
-**Tarih:** 04 Eyl 2026 · **Durum:** Aktif · **Commit(ler):** `db952d6` lisans/hijyen, `457f13e` sürüm, `d6d10d5` donmuş ortam, `012df0c` PyInstaller, `c01b583` monospace yedeği
+**Tarih:** 04 Eyl 2026 · **Durum:** Tamamlandı · **Commit(ler):** `db952d6` lisans/hijyen, `457f13e` sürüm, `d6d10d5` donmuş ortam, `012df0c` PyInstaller, `c01b583` monospace yedeği
 
 ## Hedef
 DeCode IDE'yi indirilip çalıştırılabilen tek bir Linux dosyası olarak
@@ -14,7 +14,7 @@ yayınlamak (v0.1.0) ve bunu her tag'de tekrarlayan bir CI hattına bağlamak.
 - [x] Her push'ta pytest — `.github/workflows/tests.yml`
 - [x] `v*` tag'inde build + duman testi + Release — `.github/workflows/release.yml`
 - [x] README, CHANGELOG, Roadmap güncellemesi
-- [ ] `main`'e merge, `v0.1.0` tag'i, yayın
+- [x] `main`'e merge, `v0.1.0` tag'i, yayın — https://github.com/denizbugraerol/DeCode-IDE/releases/tag/v0.1.0
 
 ## Teknik notlar
 
@@ -65,6 +65,18 @@ API'sinden kimlik doğrulaması ister; annotation'lar public depolarda
 doğrulamasız okunur. `tests.yml` kırılan test adlarını `::error::` ile
 yayınlıyor, böylece bir koşunun neden kırıldığı `gh` kurulu olmayan bir
 makineden de görülebiliyor.
+
+**glibc tabanı ölçüldü, varsayılmadı.** Yayınlanan binary indirilip paketin
+açıldığı dizindeki 45 kütüphane tarandı: en yüksek gereksinim `GLIBC_2.35`
+(`libpython3.12.so.1.0`, `libgcc_s.so.1`, `libcairo.so.2`). README'nin
+"glibc 2.35+ / Ubuntu 22.04+" iddiası bununla örtüşüyor. Bootloader ELF'ine
+bakmak yanıltıcı olurdu: o yalnız `GLIBC_2.14` istiyor, asıl taban paketin
+içindeki kütüphanelerde.
+
+**`main` doğrusal değil.** Depoya Faz 3 ve Faz 4 GitHub PR'larıyla merge
+edilmiş; yerel `main` bayat olduğu için ilk `--ff-only` denemesi yerelde
+geçip push'ta reddedildi. Zorlanmadı: `origin/main`'e hizalanıp `--no-ff`
+merge ile deponun kendi PR-merge topolojisine uyuldu.
 
 ## Devreden
 - AppImage, `.desktop` girdisi ve uygulama ikonu (Faz 5'in kalanı)
