@@ -1,0 +1,21 @@
+# Değişiklik Günlüğü
+
+## v0.1.0 — 04 Eyl 2026
+
+İlk halka açık sürüm. Tek dosya Linux çalıştırılabiliri olarak yayınlanıyor.
+
+### Özellikler
+- Modal editör (NORMAL / INSERT / COMMAND), çoklu sekme, satır numarası gutter'ı
+- Gerçek `:` komut satırı: Tab tamamlama, kaydırılabilir öneri listesi
+- Bulanık dosya arama (`:ts`), dosya içi arama/değiştirme (`:find`, `:replace`),
+  sembol atlama (`:sym`), yol tamamlamalı `:openfile`
+- Gömülü terminal: gerçek PTY, sekmeli, ANSI renkleri Tokyo Night'a eşlenmiş
+- PlatformIO: `:pio build|upload|monitor|clean|env`, sekme başlığında `✓`/`✗`
+- Ayar dosyası (`~/.config/decode/config.toml`): 17 renk tokeni, font, sekme
+  genişliği, terminal satır sayısı; `:reload` ile kapatmadan uygulama
+- C/C++ ve Python sözdizimi renklendirme
+
+### Bilinen sınırlar
+- Yalnız Linux x86_64 (glibc 2.35+). macOS ve Windows henüz yok.
+- Vim düzenleme komutları (`dd`, `yy`, `x`, `o`/`O`) ve VISUAL mod yok
+- Derleme hatasından koda atlama ve kendi seri monitörümüz yok
