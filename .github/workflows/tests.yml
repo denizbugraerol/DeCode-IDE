@@ -1,0 +1,33 @@
+name: Testler
+
+on: [push, pull_request]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # PyQt6 wheel'i Qt kütüphanelerini getirir ama onların bağlı olduğu
+      # SİSTEM kütüphaneleri runner'da kurulu değil. Bunlar olmadan testler
+      # 'could not load the Qt platform plugin' ile kırılır -- offscreen
+      # platformda bile.
+      - name: Qt sistem kütüphaneleri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 libgl1 libdbus-1-3 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0
+
+      - name: Bağımlılıklar
+        run: pip install -r requirements-dev.txt
+
+      - name: Testler
+        run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
