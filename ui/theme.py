@@ -16,7 +16,7 @@ sözlük verilse bile _current eksiksiz kalır, aksi halde color() sonradan
 boyama sırasında KeyError fırlatabilirdi). """
 from string import Template
 
-from PyQt6.QtGui import QFont, QFontInfo, QFontMetricsF
+from PyQt6.QtGui import QFont, QFontDatabase, QFontInfo, QFontMetricsF
 
 # Tokyo Night. Bugün altı dosyaya dağılmış 17 rengin tamamı.
 DEFAULT_PALETTE = {
@@ -101,6 +101,17 @@ def _is_monospace(font):
     return len({metrics.horizontalAdvance(ch) for ch in _MONO_PROBE}) == 1
 
 
+def _first_monospace_family(size):
+    """ Font veritabanındaki ilk GERÇEKTEN sabit genişlikli aile.
+
+    styleHint(Monospace) başarısız olduğunda son çare. Ölçerek karar
+    verdiğimiz için isim tahminine ("Mono geçen aileler") güvenmiyoruz. """
+    for candidate in QFontDatabase.families():
+        if _is_monospace(_probe_font(candidate, size)):
+            return candidate
+    return None
+
+
 def resolve_font_family(family, size):
     """ İstenen aileyi gerçekten SABİT GENİŞLİKLİ, kurulu bir aileye çevirir.
     (aile, uyarılar) döndürür — build_palette ile aynı sözleşme; çağıran
@@ -127,6 +138,17 @@ def resolve_font_family(family, size):
     fallback.setStyleHint(QFont.StyleHint.Monospace)
     fallback.setFixedPitch(True)
     resolved = QFontInfo(fallback).family()
+
+    # ÜÇÜNCÜ tuzak: styleHint(Monospace) fontconfig'in "monospace" takma adına
+    # güvenir. O takma ad tanımlı değilse (minimal sistemler, konteynerler, CI
+    # runner'ları) Qt orantılı bir aile döndürür ve terminal ızgarası yine
+    # bozulur -- düzeltmeye çalıştığımız hatanın tam kendisi. Bu yüzden yedeğe
+    # de güvenmiyoruz: ÖLÇÜP doğruluyor, tutmazsa veritabanını tarıyoruz.
+    if not _is_monospace(_probe_font(resolved, size)):
+        scanned = _first_monospace_family(size)
+        if scanned is not None:
+            resolved = scanned
+
     return resolved, [
         f"Sabit genişlikli '{family}' fontu bulunamadı; '{resolved}' kullanılıyor."
     ]
