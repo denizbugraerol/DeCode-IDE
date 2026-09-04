@@ -116,10 +116,10 @@ yer tutuyor.
   listesi ve `:pio ` tamamlamasıyla.
 - **Kart ve port seçimi** — **tamamlandı**: `platformio.ini` okunup ortamlar
   `:pio env` paletinde listeleniyor, seçim statusline rozetinde duruyor.
-- **`embedded/serial_reader.py`** — açık (Sprint 13): kendi seri monitörümüz
+- **`embedded/serial_reader.py`** — açık: kendi seri monitörümüz
   (port/baud seçimi, yeniden bağlanma). Bugün `:pio monitor` PlatformIO'nun
   kendi monitörünü çalıştırıyor.
-- **Derleme hatasından koda atlama** — açık (Sprint 12): çıktıdaki
+- **Derleme hatasından koda atlama** — açık: çıktıdaki
   `dosya:satır` eşleşmelerini yakalayıp ilgili sekmede o satıra gitme.
 
 ## Faz 5 — Dağıtım
@@ -135,9 +135,17 @@ yer tutuyor.
   binary dağıtan bu projenin başka seçeneği yok).
 - `pyproject.toml` ile kurulabilir paket ve `decode` komutu — açık.
 - Linux masaüstü girdisi (`.desktop`), uygulama ikonu ve AppImage — açık.
-- macOS ve Windows — açık; ayrı alt projeler. macOS küçüktür (`pty`/`termios`
-  orada da var), Windows bir port işidir: `core/terminal_process.py` `fcntl`,
-  `pty`, `termios` ve `SIGHUP` kullanıyor, karşılığı ConPTY (`pywinpty`).
+- **macOS (Apple Silicon)** — **tamamlandı** ([Sprint 12](sprint/sprint-12.md)):
+  `macos-latest` matris satırı, düz binary (`.app` paketi değil), imzasız.
+  Uygulama kodunda gereken tek değişiklik `QT_QPA_PLATFORM` ipucunun Linux'a
+  koşullanmasıydı — `pty`, `fcntl`, `termios`, `SIGHUP` macOS'ta da var.
+  **Elle denenmedi:** projenin bir Mac'i yok, güvence otomatik testlerden
+  geliyor (gerçek PTY testleri dahil, macOS runner'ında koşuyor).
+- Intel Mac (x86_64) — açık; ayrı bir `macos-13` matris satırı gerekir.
+- **Windows** — açık ve bir paketleme işi değil, port: `terminal_process.py`
+  `fcntl`, `pty`, `termios`, `SIGHUP` kullanıyor ve bunlar Windows'ta yok —
+  uygulama import anında çökür. Karşılığı ConPTY (`pywinpty`). Kodun
+  %94'ü zaten taşınabilir; engel bu 238 satırlık dosya.
 
 ## Teknik borç
 
@@ -147,7 +155,7 @@ yer tutuyor.
 | Lint altyapısı yok | Test var (197 test, pytest); lint/format aracı hâlâ seçilmedi | — |
 | CI yok | Çözüldü ([Sprint 11](sprint/sprint-11.md)): her push'ta pytest, `v*` tag'inde release build | `.github/workflows/` |
 | `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
-| Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | Sprint 13 |
+| Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | `embedded/` |
 | Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
 | `forkpty()` çok iş parçacıklı süreçte | `:ts` taraması sürerken `:term` açmak uyarı üretiyor | `core/terminal_process.py` |

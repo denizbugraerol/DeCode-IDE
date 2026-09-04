@@ -8,12 +8,25 @@ permissions:
   contents: write        # gh release create için
 
 jobs:
-  linux:
-    # Bilinçli olarak 'latest' DEĞİL: binary, üzerinde derlendiği glibc'yi
-    # taban alır. Eski image = düşük taban = daha çok dağıtımda çalışır.
-    # Bu image emekliye ayrılmışsa en eski mevcut olana düş ve README'deki
-    # glibc tabanını güncelle.
-    runs-on: ubuntu-22.04
+  build:
+    strategy:
+      # Bir platformun kırılması ötekinin build'ini iptal etmesin; ikisinin de
+      # sonucunu görmek istiyoruz. Release job'ı yine de ikisini birden
+      # bekliyor (aşağıdaki 'needs'), yani eksik bir sürüm yayınlanmaz.
+      fail-fast: false
+      matrix:
+        include:
+          # Bilinçli olarak 'ubuntu-latest' DEĞİL: binary, üzerinde derlendiği
+          # glibc'yi taban alır. Eski image = düşük taban = daha çok dağıtım.
+          # Ölçüldü: paketlenmiş kütüphanelerin istediği en yüksek sürüm
+          # GLIBC_2.35, yani Ubuntu 22.04+ / Debian 12+.
+          - os: ubuntu-22.04
+            ad: linux-x86_64
+          # macos-latest Apple Silicon (arm64). Intel Mac'ler için ayrı bir
+          # macos-13 satırı gerekirdi; bilinçli olarak kapsam dışı.
+          - os: macos-latest
+            ad: macos-arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +34,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Qt sistem kütüphaneleri ve fontlar
+      - name: Qt sistem kütüphaneleri ve fontlar (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -37,20 +51,20 @@ jobs:
         run: python -m PyInstaller --clean --noconfirm packaging/decode.spec
 
       # Bozuk bir binary yayınlanmasın: bu adım kırılırsa Release HİÇ
-      # oluşturulmaz. Tag 'v0.1.0', binary çıktısı 'DeCode IDE 0.1.0' --
-      # karşılaştırma baştaki 'v' atılarak yapılıyor, yoksa her koşuda kırılır.
+      # oluşturulmaz. Tag 'v0.1.2', binary çıktısı 'DeCode IDE 0.1.2' --
+      # karşılaştırma baştaki 'v' atılarak yapılıyor.
+      #
+      # Başarısızlıklar AÇIKÇA 'exit 1' ile bildiriliyor: kabuğun 'set -e'
+      # davranışına güvenen bir kapı, son komut başarılı olduğunda sessizce
+      # açık kalır.
       - name: Duman testi
         run: |
           BINARY=$(ls dist/DeCode-*)
           chmod +x "$BINARY"
           ls -lh "$BINARY"
 
-          # Başarısızlıklar AÇIKÇA 'exit 1' ile bildiriliyor: kabuğun 'set -e'
-          # davranışına güvenen bir kapı, son komut başarılı olduğunda sessizce
-          # açık kalır. Bu adım bozuk binary'nin yayınlanmasını engelleyen TEK
-          # mekanizma.
           if ! CIKTI=$(QT_QPA_PLATFORM=offscreen "$BINARY" --version); then
-            echo "::error title=Duman testi::binary çalışmadı"
+            echo "::error title=Duman testi (${{ matrix.ad }})::binary çalışmadı"
             exit 1
           fi
 
@@ -58,33 +72,75 @@ jobs:
           echo "çıktı   : $CIKTI"
           echo "beklenen: $BEKLENEN"
           if [ "$CIKTI" != "$BEKLENEN" ]; then
-            echo "::error title=Duman testi::sürüm uyuşmuyor -- core/version.py ile tag farklı"
+            echo "::error title=Duman testi (${{ matrix.ad }})::sürüm uyuşmuyor -- core/version.py ile tag farklı"
             exit 1
           fi
+
+          # Adın platformu taşıdığını doğrula: .spec bunu sys.platform ve
+          # platform.machine()'den türetiyor, yanlış runner'a düşersek burada
+          # yakalanır.
+          case "$BINARY" in
+            *${{ matrix.ad }}) echo "ad doğru: $BINARY" ;;
+            *) echo "::error title=Duman testi::beklenen ad '*${{ matrix.ad }}', bulunan '$BINARY'"; exit 1 ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeCode-${{ matrix.ad }}
+          path: dist/DeCode-*
+          if-no-files-found: error
+
+  release:
+    # İkisi de başarılı olmadan Release oluşmaz: yarım bir sürüm (yalnız
+    # Linux, ya da yalnız macOS) yayınlamak, sessizce eksik bir şey dağıtmak
+    # olurdu. Bir platform kırılırsa tag durur, düzeltip yeniden etiketleriz.
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: varliklar
+
+      - name: Toplanan varlıklar
+        run: ls -lhR varliklar
 
       - name: Release oluştur
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/DeCode-* \
+          gh release create "$GITHUB_REF_NAME" varliklar/*/DeCode-* \
             --title "DeCode IDE $GITHUB_REF_NAME" \
             --notes "$(cat <<'NOTLAR'
           ## Kurulum
 
+          ### Linux (x86_64)
+
           ```bash
-          chmod +x DeCode-*-x86_64
-          ./DeCode-*-x86_64
+          chmod +x DeCode-*-linux-x86_64
+          ./DeCode-*-linux-x86_64
           ```
 
+          glibc 2.35+ gerekir (Ubuntu 22.04+, Debian 12+, Fedora, Arch),
+          Wayland ya da X11 oturumu. `/tmp` sisteminizde `noexec` ise:
+          `TMPDIR=~/.cache ./DeCode-*-linux-x86_64`
+
+          ### macOS (Apple Silicon)
+
+          ```bash
+          chmod +x DeCode-*-macos-arm64
+          xattr -d com.apple.quarantine DeCode-*-macos-arm64
+          ./DeCode-*-macos-arm64
+          ```
+
+          Binary imzasız olduğu için macOS ilk açılışta karantinaya alır;
+          yukarıdaki `xattr` satırı bunu kaldırır (ya da Finder'da sağ tık →
+          Aç). Kod imzalama ve notarization bilinçli olarak yapılmıyor.
+
+          **macOS derlemesi otomatik testlerden geçiyor, ancak elle
+          denenmedi** — geri bildirim memnuniyetle karşılanır.
+
           Python, pip ya da bağımlılık kurulumu gerekmez.
-
-          ## Gereksinimler
-
-          - Linux x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora, Arch)
-          - Wayland ya da X11 oturumu
-
-          `/tmp` sisteminizde `noexec` ise: `TMPDIR=~/.cache ./DeCode-*-x86_64`
-
           Değişiklikler için `CHANGELOG.md`'ye bakın.
           NOTLAR
           )"
