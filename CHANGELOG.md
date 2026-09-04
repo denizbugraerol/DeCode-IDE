@@ -1,6 +1,6 @@
 # Değişiklik Günlüğü
 
-## Yayınlanmamış
+## v0.1.1 — 04 Eyl 2026
 
 ### Eklendi
 - `:pio init [kart]` — çalışma dizininde yeni PlatformIO projesi oluşturur.

@@ -17,8 +17,8 @@ paletine sadık kalır**.
 son sürümü indirin:
 
 ```bash
-chmod +x DeCode-v0.1.0-x86_64
-./DeCode-v0.1.0-x86_64
+chmod +x DeCode-v0.1.1-x86_64
+./DeCode-v0.1.1-x86_64
 ```
 
 Python, pip ya da bağımlılık kurulumu gerekmez.
@@ -42,7 +42,7 @@ bazı sistemlerde `/tmp` `noexec` bağlıdır ve uygulama açılmaz; o durumda b
 bir dizin gösterin:
 
 ```bash
-TMPDIR=~/.cache ./DeCode-v0.1.0-x86_64
+TMPDIR=~/.cache ./DeCode-v0.1.1-x86_64
 ```
 
 ## Modlar
