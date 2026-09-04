@@ -1,5 +1,13 @@
 # Değişiklik Günlüğü
 
+## Yayınlanmamış
+
+### Eklendi
+- `:pio init [kart]` — çalışma dizininde yeni PlatformIO projesi oluşturur.
+  Diğer `:pio` komutlarının aksine var olan bir `platformio.ini` aramaz;
+  onu oluşturan komut o. Kart argümanı opsiyonel: `:pio init` çıplak proje,
+  `:pio init esp32dev` `[env:esp32dev]` bölümüyle birlikte kurar.
+
 ## v0.1.0 — 04 Eyl 2026
 
 İlk halka açık sürüm. Tek dosya Linux çalıştırılabiliri olarak yayınlanıyor.

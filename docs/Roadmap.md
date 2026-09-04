@@ -112,7 +112,7 @@ yer tutuyor.
   ([Sprint 10](sprint/sprint-10.md)): `build`, `upload`, `clean`, `monitor`
   argv'leri ve `platformio.ini` ayrıştırma. Çıktı `TerminalPanel`'de kendi
   sekmesine akıyor; ayrı bir çıktı penceresi yazılmadı.
-- **Komutlar** — **tamamlandı**: `:pio build|upload|monitor|clean|env`, öneri
+- **Komutlar** — **tamamlandı**: `:pio build|upload|monitor|clean|env|init`, öneri
   listesi ve `:pio ` tamamlamasıyla.
 - **Kart ve port seçimi** — **tamamlandı**: `platformio.ini` okunup ortamlar
   `:pio env` paletinde listeleniyor, seçim statusline rozetinde duruyor.

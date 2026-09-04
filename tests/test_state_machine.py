@@ -140,7 +140,8 @@ def test_pio_argumansiz_sinyal_yaymaz(qapp):
 def test_pio_tamamlamasi_alt_komutlari_listeler(qapp):
     editor = _editor(qapp)
     adlar = [ad for ad, _aciklama in editor.state_machine._matches_for("pio ")]
-    assert adlar == ["pio build", "pio clean", "pio env", "pio monitor", "pio upload"]
+    assert adlar == ["pio build", "pio clean", "pio env", "pio init",
+                     "pio monitor", "pio upload"]
 
 
 def test_pio_tamamlamasi_oneke_gore_daralir(qapp):

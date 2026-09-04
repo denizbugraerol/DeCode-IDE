@@ -103,3 +103,40 @@ def test_cd_secili_ortami_sifirlar(proje, pencere, tmp_path):
     baska.mkdir()
     pencere._change_directory(str(baska))
     assert pencere.pio_env is None
+
+
+# --- ':pio init' — ters ön koşul ---
+
+def test_init_proje_yokken_de_sekme_acar(tmp_path, monkeypatch, pencere, kayit, sahte_pio):
+    """ 'init' ötekilerin TERSİ: platformio.ini YOKKEN çalışmalı, çünkü onu
+    oluşturan komut o. Diğer alt komutlar aynı durumda sekme açmıyor
+    (bkz. test_proje_yoksa_sekme_acilmaz) -- asıl regresyon riski burada. """
+    monkeypatch.chdir(tmp_path)
+    pencere._on_pio_requested("init")
+    argv, baslik, cwd = kayit[0]
+    assert argv == ["/kurulum/pio", "project", "init"]
+    assert baslik == "pio init"
+    assert os.path.realpath(cwd) == os.path.realpath(str(tmp_path))
+
+
+def test_init_kart_argumani_argva_gecer(tmp_path, monkeypatch, pencere, kayit, sahte_pio):
+    monkeypatch.chdir(tmp_path)
+    pencere._on_pio_requested("init esp32dev")
+    argv, baslik, _cwd = kayit[0]
+    assert argv == ["/kurulum/pio", "project", "init", "--board", "esp32dev"]
+    assert baslik == "pio init"
+
+
+def test_init_secili_ortami_sifirlar(proje, pencere, kayit, sahte_pio):
+    """ init'ten sonra platformio.ini'deki ortam listesi değişebilir; rozet
+    olmayan bir ortamı göstermeye devam etmesin (':cd' ile aynı gerekçe). """
+    pencere.pio_env = "esp32dev"
+    pencere._on_pio_requested("init")
+    assert pencere.pio_env is None
+
+
+def test_init_argumani_editor_sinyalinden_gecer(proje, pencere, kayit, sahte_pio):
+    """ ModalEditor -> EditorTabs._relay -> IDEWindow boru hattı, argümanlı. """
+    pencere.editor.pio_requested.emit("init nanoatmega328")
+    argv, _baslik, _cwd = kayit[0]
+    assert argv == ["/kurulum/pio", "project", "init", "--board", "nanoatmega328"]
