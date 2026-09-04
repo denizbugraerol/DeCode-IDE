@@ -34,7 +34,9 @@ class StateMachine:
         "replace": "metni değiştir (:replace eski yeni)",
         "openfile": "dosya aç (:openfile <yol>)",
         "sym": "dosyadaki tanımlara atla",
-        "pio": "PlatformIO (:pio build|upload|monitor|clean|env)",
+        # Alt komut listesi tek kaynaktan (pio_cli.SUBCOMMANDS) türetiliyor;
+        # yeni bir alt komut eklenince bu açıklama kendiliğinden güncellenir.
+        "pio": f"PlatformIO (:pio {'|'.join(pio_cli.SUBCOMMANDS)})",
         "reload": "ayar dosyasını yeniden oku",
         "cd": "çalışma dizinini değiştir (:cd <yol>)",
         "term": "terminali aç/kapat",
@@ -301,12 +303,18 @@ class StateMachine:
         self.editor.mode_changed.emit("INSERT")
         print("MOD: INSERT")
 
-    def _run_pio(self, subcommand):
-        """ ':pio <alt-komut>' — asıl iş IDEWindow'da (proje kökü, pio'nun
-        yeri, terminal sekmesi); burada yalnız alt komut doğrulanıp sinyal
-        yayılıyor. """
+    def _run_pio(self, arguments):
+        """ ':pio <alt-komut> [argüman]' — asıl iş IDEWindow'da (proje kökü,
+        pio'nun yeri, terminal sekmesi); burada yalnız alt komut doğrulanıp
+        sinyal yayılıyor.
+
+        Argüman alan tek alt komut bugün 'init' (kart adı). Doğrulama İLK
+        tokene bakar, sinyal dizenin TAMAMINI taşır — böylece sinyalin imzası
+        (pyqtSignal(str)) değişmiyor ve EditorTabs._relay'e dokunmak
+        gerekmiyor. """
+        subcommand = arguments.split(" ", 1)[0]
         if subcommand in pio_cli.SUBCOMMANDS:
-            self.editor.pio_requested.emit(subcommand)
+            self.editor.pio_requested.emit(arguments)
         else:
             print(f"Kullanım: :pio {'|'.join(pio_cli.SUBCOMMANDS)}")
 

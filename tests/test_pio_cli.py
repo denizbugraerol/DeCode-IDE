@@ -80,3 +80,28 @@ def test_find_executable_yoksa_none(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path / "bos"))
     monkeypatch.setenv("HOME", str(tmp_path))
     assert pio_cli.find_executable() is None
+
+
+# --- ':pio init' (Sprint 11 sonrası) — projeyi OLUŞTURAN alt komut ---
+
+def test_init_argv_kartsiz():
+    assert pio_cli.build_argv("init", "/kurulum/pio") == [
+        "/kurulum/pio", "project", "init"]
+
+
+def test_init_argv_kartli():
+    assert pio_cli.build_argv("init", "/kurulum/pio", board="esp32dev") == [
+        "/kurulum/pio", "project", "init", "--board", "esp32dev"]
+
+
+def test_inite_ortam_bayragi_eklenmez():
+    """ 'pio project init -e esp32dev' anlamsız: seçili bir ortam varken bile
+    '-e' eklenmemeli. """
+    assert pio_cli.build_argv("init", "/kurulum/pio", env="esp32dev") == [
+        "/kurulum/pio", "project", "init"]
+
+
+def test_kart_yalniz_inite_eklenir():
+    """ 'board' ötekilere sızmamalı; 'pio run --board' diye bir şey yok. """
+    assert pio_cli.build_argv("build", "/kurulum/pio", board="esp32dev") == [
+        "/kurulum/pio", "run"]

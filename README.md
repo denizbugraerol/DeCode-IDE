@@ -75,6 +75,7 @@ atlar. `h/j/k/l`, `w/b`, `gg`/`G` uygulanmayacaktır.
 | `:term` · `:termnew` | Gömülü terminali aç/kapat · yeni terminal sekmesi |
 | `:reload` | Ayar dosyasını kapatmadan yeniden uygula |
 | `:pio build\|upload\|monitor\|clean\|env` | PlatformIO: derle, yükle, seri monitör, temizle, ortam seç |
+| `:pio init [kart]` | Çalışma dizininde yeni PlatformIO projesi (`:pio init esp32dev`) |
 
 Komut kutusunda `Tab` / `Shift+Tab` önerileri gezdirir; `:cd` ve `:openfile`
 yol tamamlaması yapar.

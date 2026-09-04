@@ -388,28 +388,47 @@ class IDEWindow(QMainWindow):
         self.command_palette.open_with(f"Tanım ara ({self.current_file_name})", items, mode="symbol")
         self._show_palette()
 
-    def _on_pio_requested(self, subcommand):
-        """ ':pio <alt-komut>' — proje kökünü ve pio'yu bulup komutu terminal
-        panelinde kendi sekmesinde çalıştırır. Hatalar konsola tek satır
-        yazılır; hiçbiri sekme açmaz. """
-        root = pio_project.find_project_root(os.getcwd())
-        if root is None:
-            print("PlatformIO projesi bulunamadı (platformio.ini yok).")
-            return
+    def _on_pio_requested(self, request):
+        """ ':pio <alt-komut> [argüman]' — proje kökünü ve pio'yu bulup komutu
+        terminal panelinde kendi sekmesinde çalıştırır. Hatalar konsola tek
+        satır yazılır; hiçbiri sekme açmaz.
 
-        if subcommand == "env":
-            self._open_env_palette(root)
-            return
+        Bugün argüman alan tek alt komut 'init' (kart adı). """
+        subcommand, _, argument = request.partition(" ")
+        argument = argument.strip() or None
+
+        if subcommand == "init":
+            # DİKKAT: 'init' ötekilerin TERSİ ön koşula sahip -- var olan bir
+            # platformio.ini ARAMAZ, çünkü onu oluşturmak için çağrılıyor.
+            # Proje kökü araması buraya konursa komut hiç çalışamaz.
+            root = os.getcwd()
+        else:
+            root = pio_project.find_project_root(os.getcwd())
+            if root is None:
+                print("PlatformIO projesi bulunamadı (platformio.ini yok).")
+                return
+
+            if subcommand == "env":
+                self._open_env_palette(root)
+                return
 
         executable = pio_cli.find_executable()
         if executable is None:
             print("PlatformIO bulunamadı (kurulum: pip install platformio).")
             return
 
-        argv = pio_cli.build_argv(subcommand, executable, env=self.pio_env)
+        argv = pio_cli.build_argv(subcommand, executable,
+                                  env=self.pio_env, board=argument)
         if argv is None:
             print(f"Bilinmeyen PlatformIO alt komutu: {subcommand}")
             return
+
+        if subcommand == "init":
+            # Yeni/güncellenmiş ini'de ortam listesi değişecek; rozet artık
+            # var olmayan bir ortamı göstermeye devam etmesin (':cd' ile aynı
+            # gerekçe). Sekme gerçekten açılacağı kesinleştikten sonra.
+            self.pio_env = None
+            self._refresh_pio_badge()
 
         self.terminal_panel.run_command(argv, f"pio {subcommand}", cwd=root)
 
