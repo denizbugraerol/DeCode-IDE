@@ -84,7 +84,7 @@ atlar. `h/j/k/l`, `w/b`, `gg`/`G` uygulanmayacaktır.
 | Komut | Ne yapar |
 |---|---|
 | `:w` · `:wq` · `:q` · `:qa` · `:wqa` | Kaydet / kaydedip kapat / kapat / hepsinden çık |
-| `:42` | 42. satıra git |
+| `:61` | 61. satıra git |
 | `:d` · `:y` · `:p` | Satırı sil / kopyala / yapıştır |
 | `:find <desen>` | Dosya içinde ara; `n` / `N` ile eşleşmeler arasında gez |
 | `:replace <eski> <yeni>` | Dosya içinde değiştir (tırnaklı argüman destekli) |
