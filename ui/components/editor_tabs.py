@@ -4,6 +4,7 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QTabWidget
 
 from ui.components.code_editor import ModalEditor
+from core import keymap
 
 
 class EditorTabs(QTabWidget):
@@ -50,7 +51,17 @@ class EditorTabs(QTabWidget):
         self.tabCloseRequested.connect(self.close_tab)
         self.currentChanged.connect(self._on_current_changed)
 
+        # Sekme fabrikası: her yeni ModalEditor güncel haritayı buradan alır.
+        self._keymap = keymap.defaults()
+
         self.new_tab()  # açılışta her zaman bir boş sekme bulunsun
+
+    def apply_keymap(self, new_keymap):
+        """ Tuş haritasını saklar ve açık tüm editörlere uygular. Saklamak
+        şart: sonradan açılan sekmeler de güncel haritayı almalı. """
+        self._keymap = new_keymap
+        for editor in self.editors():
+            editor.apply_keymap(new_keymap)
 
     # --- Erişimciler ---
 
@@ -67,6 +78,7 @@ class EditorTabs(QTabWidget):
         editor.setPlaceholderText(self.PLACEHOLDER)
         self._load_into(editor, file_path, content)
         self._wire(editor)
+        editor.apply_keymap(self._keymap)
 
         index = self.addTab(editor, self._title_for(editor))
         self.setCurrentIndex(index)

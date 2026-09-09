@@ -1,11 +1,13 @@
 """ Qt kabuğu (ui/keys.py) ve kısayolların uçtan uca yapılandırılması. """
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtTest import QTest
 
 import core.keymap as keymap
 import ui.keys as keys
 
 ALT_SHIFT = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+CTRL = Qt.KeyboardModifier.ControlModifier
 
 
 def _olay(key, modifiers=Qt.KeyboardModifier.NoModifier, text=""):
@@ -55,3 +57,76 @@ def test_match_eylemi_bulur():
     assert keys.match(_olay(Qt.Key.Key_N, ALT_SHIFT), harita, "panel") == "tab_new"
     assert keys.match(_olay(Qt.Key.Key_I, text="i"), harita, "normal") == "insert_mode"
     assert keys.match(_olay(Qt.Key.Key_Z, ALT_SHIFT), harita, "panel") is None
+
+
+# --- Editör dağıtımı ---
+
+def test_editorde_panel_kisayolu_yeniden_atanabilir(pencere):
+    pencere.show()
+    harita, _u = keymap.build({"tab_new": "ctrl+t"})
+    pencere.editor_tabs.apply_keymap(harita)
+
+    onceki = pencere.editor_tabs.count()
+    QTest.keyClick(pencere.editor, Qt.Key.Key_T, CTRL)
+    assert pencere.editor_tabs.count() == onceki + 1
+
+    # Eski tuş artık çalışmamalı
+    simdiki = pencere.editor_tabs.count()
+    QTest.keyClick(pencere.editor, Qt.Key.Key_N, ALT_SHIFT)
+    assert pencere.editor_tabs.count() == simdiki
+
+
+def test_normal_mod_tusu_yeniden_atanabilir(pencere):
+    pencere.show()
+    harita, _u = keymap.build({"insert_mode": "a"})
+    pencere.editor_tabs.apply_keymap(harita)
+
+    QTest.keyClick(pencere.editor, Qt.Key.Key_A)
+    assert pencere.editor.current_mode == "INSERT"
+
+
+def test_yeniden_atandiktan_sonra_eski_tus_metin_yazmaz(pencere):
+    """ NORMAL modda bağlanmamış yazılabilir tuş YUTULUR (bugünkü davranış);
+    metne düşmemeli. """
+    pencere.show()
+    harita, _u = keymap.build({"insert_mode": "a"})
+    pencere.editor_tabs.apply_keymap(harita)
+
+    QTest.keyClick(pencere.editor, Qt.Key.Key_I)
+    assert pencere.editor.current_mode == "NORMAL"
+    assert pencere.editor.toPlainText() == ""
+
+
+def test_insert_modunda_harf_hala_yazilabiliyor(pencere):
+    """ K6'nın koruduğu şey: panel kısayolu değiştirici içermek zorunda
+    olduğu için hiçbir harf INSERT modunda kaçırılamaz. """
+    pencere.show()
+    QTest.keyClick(pencere.editor, Qt.Key.Key_I)
+    QTest.keyClicks(pencere.editor, "insan")
+    assert pencere.editor.toPlainText() == "insan"
+
+
+def test_sonradan_acilan_sekme_guncel_haritayi_alir(pencere):
+    pencere.show()
+    harita, _u = keymap.build({"tab_new": "ctrl+t"})
+    pencere.editor_tabs.apply_keymap(harita)
+
+    yeni = pencere.editor_tabs.new_tab()
+    onceki = pencere.editor_tabs.count()
+    QTest.keyClick(yeni, Qt.Key.Key_T, CTRL)
+    assert pencere.editor_tabs.count() == onceki + 1
+
+
+def test_escape_yeniden_atanabilir(pencere):
+    """ clear_search varsayılan 'escape'; başka bir tuşa alınabilmeli. """
+    pencere.show()
+    harita, _u = keymap.build({"clear_search": "x"})
+    pencere.editor_tabs.apply_keymap(harita)
+
+    editor = pencere.editor
+    editor.setPlainText("bir foo iki")
+    editor.search("foo")
+    assert editor.extraSelections()
+
+    QTest.keyClick(editor, Qt.Key.Key_X)
+    assert editor.extraSelections() == []
