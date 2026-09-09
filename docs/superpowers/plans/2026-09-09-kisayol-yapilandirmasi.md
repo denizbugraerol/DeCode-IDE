@@ -547,15 +547,11 @@ git commit -m "feat: Keymap, build() ve çakışma çözümü (ilk gelen kazanı
 """ Qt kabuğu (ui/keys.py) ve kısayolların uçtan uca yapılandırılması. """
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent
-from PyQt6.QtTest import QTest
 
-import core.config as config
 import core.keymap as keymap
 import ui.keys as keys
-from ui.main_window import IDEWindow
 
 ALT_SHIFT = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
-CTRL = Qt.KeyboardModifier.ControlModifier
 
 
 def _olay(key, modifiers=Qt.KeyboardModifier.NoModifier, text=""):
@@ -854,7 +850,19 @@ git commit -m "feat: ayar dosyasına [shortcuts] bölümü"
 
 - [ ] **Step 1: Testleri yaz (kırmızı olmalı)**
 
-`tests/test_shortcut_config.py` sonuna ekle:
+Önce `tests/test_shortcut_config.py`'nin **import bloğuna** ekle:
+
+```python
+from PyQt6.QtTest import QTest
+```
+
+ve `ALT_SHIFT`'in altına:
+
+```python
+CTRL = Qt.KeyboardModifier.ControlModifier
+```
+
+Sonra dosyanın sonuna ekle:
 
 ```python
 # --- Editör dağıtımı ---
@@ -1430,7 +1438,14 @@ git commit -m "feat: karşılama sayfası tuş haritasını kullanıyor ve göst
 
 - [ ] **Step 1: Testleri yaz (kırmızı olmalı)**
 
-`tests/test_shortcut_config.py` sonuna ekle:
+Önce `tests/test_shortcut_config.py`'nin **import bloğuna** ekle:
+
+```python
+import core.config as config
+from ui.main_window import IDEWindow
+```
+
+Sonra dosyanın sonuna ekle:
 
 ```python
 # --- Uçtan uca: ayar dosyasından pencereye ---
