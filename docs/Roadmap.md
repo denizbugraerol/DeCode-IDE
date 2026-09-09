@@ -101,6 +101,7 @@ kişiselleştirme.
   (`#rrggbb`, geçersiz/bilinmeyen anahtarlar uyarıyla varsayılana döner).
   Dosya yoksa ilk açılışta şablonla oluşturuluyor; `:reload` uygulamayı
   kapatmadan yeniden uyguluyor.
+  `[shortcuts]` altında 10 eylemin tuş ataması ([Sprint 13](sprint/sprint-13.md)).
 - Oturum geri yükleme: son açık sekmeler ve çalışma dizini.
 
 ## Faz 4 — Gömülü hedef (PlatformIO)

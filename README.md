@@ -114,15 +114,41 @@ yol tamamlaması yapar.
 | `Alt+Shift+W` | Sekmeyi kapat |
 | `Alt+Shift+←` / `→` | Sekmeler arasında gez |
 
-Ctrl kısayolu bilinçli olarak kullanılmaz.
+Varsayılanda Ctrl kısayolu kullanılmaz — ama bu yalnız varsayılan: tüm
+kısayollar ayar dosyasının `[shortcuts]` bölümünden değiştirilebilir.
+
+| Eylem | Varsayılan | Grup |
+|---|---|---|
+| `terminal_focus` | `alt+shift+t` | panel |
+| `tab_new` | `alt+shift+n` | panel |
+| `tab_close` | `alt+shift+w` | panel |
+| `tab_next` | `alt+shift+right` | panel |
+| `tab_prev` | `alt+shift+left` | panel |
+| `insert_mode` | `i` | NORMAL |
+| `command_line` | `:` | NORMAL |
+| `search_next` | `n` | NORMAL |
+| `search_prev` | `N` | NORMAL |
+| `clear_search` | `escape` | NORMAL |
+
+İki kural var:
+
+- **Panel** kısayolları her modda çalışır, bu yüzden `ctrl`, `alt` ya da
+  `meta`'dan en az birini içermek zorundadır — yoksa o harf INSERT modunda
+  yazılamaz hale gelirdi.
+- **NORMAL** mod kısayolları tek karakter ya da `escape`'tir; değiştirici
+  öneki alamazlar ve büyük/küçük harf ayrımı korunur (`n` ile `N` farklı
+  komut).
+
+İki eylem aynı tuşa düşerse yukarıdaki tablo sırasında önce gelen kazanır ve
+diğeri için bir uyarı basılır.
 
 ## Ayarlar
 
 İlk açılışta `~/.config/decode/config.toml` yorumlu bir şablonla oluşturulur.
 `[editor]` (font ailesi/boyutu, sekme genişliği, `expand_tabs`, satır
-numarası), `[terminal]` (satır sayısı) ve `[colors]` (17 adlandırılmış Tokyo
-Night tokeni) bölümleri vardır. `:reload` değişiklikleri uygulamayı kapatmadan
-uygular.
+numarası), `[terminal]` (satır sayısı), `[shortcuts]` (10 eylemin tuş
+ataması) ve `[colors]` (17 adlandırılmış Tokyo Night tokeni) bölümleri vardır.
+`:reload` değişiklikleri uygulamayı kapatmadan uygular.
 
 Bozuk bir ayar dosyası uygulamayı çökertmez: her hatalı anahtar bir uyarı
 basar ve yalnız o ayar varsayılana döner.
