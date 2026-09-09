@@ -1296,7 +1296,7 @@ def test_karsilama_sayfasinda_komut_satiri_tusu_yeniden_atanabilir(pencere):
     harita, _u = keymap.build({"command_line": ","})
     pencere.welcome_page.apply_keymap(harita)
 
-    QTest.keyClick(pencere.welcome_page, Qt.Key.Key_Comma, text=",")
+    QTest.keyClicks(pencere.welcome_page, ",")
     assert pencere.welcome_page.current_mode == "COMMAND"
 
 
