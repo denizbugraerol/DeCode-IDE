@@ -169,3 +169,40 @@ def test_sonradan_acilan_terminal_sekmesi_guncel_haritayi_alir(pencere):
 
     yeni = pencere.terminal_panel.new_tab()
     assert yeni._keymap.binding_of("tab_close") == (frozenset({"ctrl"}), "q")
+
+
+# --- Karşılama sayfası ---
+
+def test_karsilama_sayfasinda_panel_kisayolu_yeniden_atanabilir(pencere):
+    pencere.show()
+    pencere.editor_tabs.close_current_tab()
+    harita, _u = keymap.build({"tab_new": "ctrl+t"})
+    pencere.welcome_page.apply_keymap(harita)
+
+    QTest.keyClick(pencere.welcome_page, Qt.Key.Key_T, CTRL)
+    assert pencere.editor_tabs.count() == 1
+
+
+def test_karsilama_sayfasinda_komut_satiri_tusu_yeniden_atanabilir(pencere):
+    pencere.show()
+    pencere.editor_tabs.close_current_tab()
+    harita, _u = keymap.build({"command_line": ","})
+    pencere.welcome_page.apply_keymap(harita)
+
+    QTest.keyClicks(pencere.welcome_page, ",")
+    assert pencere.welcome_page.current_mode == "COMMAND"
+
+
+def test_karsilama_ipuclari_varsayilan_haritayi_gosterir(pencere):
+    metin = pencere.welcome_page._hints_label.text()
+    assert "Alt+Shift+N" in metin
+    assert "Alt+Shift+T" in metin
+
+
+def test_karsilama_ipuclari_haritayi_yansitir(pencere):
+    harita, _u = keymap.build({"tab_new": "ctrl+t"})
+    pencere.welcome_page.apply_keymap(harita)
+
+    metin = pencere.welcome_page._hints_label.text()
+    assert "Ctrl+T" in metin
+    assert "Alt+Shift+N" not in metin
