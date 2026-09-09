@@ -162,17 +162,26 @@ class TerminalView(QWidget):
     def apply_keymap(self, new_keymap):
         self._keymap = new_keymap
 
+    def _panel_signal(self, action):
+        """ Panel eylemi -> bu widget'ın sinyali. ModalEditor ve WelcomePage
+        ile aynı şekil (kendi _panel_signal'larına bkz.), ama kendi sinyal
+        adlarıyla: aynı tuş odağın o an bulunduğu yere (editör ya da
+        terminal) uygulanabilsin diye. Üç tablo kasıtlı olarak AYRI —
+        pyqtSignal'lar sınıf tanımlayıcısı ve widget'ların temel sınıfları
+        farklı; ortak bir mixin'e taşınmadılar (bkz. kod incelemesi). """
+        return {
+            "terminal_focus": self.return_focus_requested,
+            "tab_new": self.new_tab_requested,
+            "tab_close": self.close_tab_requested,
+            "tab_next": self.next_tab_requested,
+            "tab_prev": self.prev_tab_requested,
+        }[action]
+
     def keyPressEvent(self, event):
         # Panel kısayolları terminale gönderilmez, panele iletilir.
         action = keys.match(event, self._keymap, "panel")
         if action is not None:
-            {
-                "terminal_focus": self.return_focus_requested,
-                "tab_new": self.new_tab_requested,
-                "tab_close": self.close_tab_requested,
-                "tab_next": self.next_tab_requested,
-                "tab_prev": self.prev_tab_requested,
-            }[action].emit()
+            self._panel_signal(action).emit()
             return
 
         data = self._translate_key(event)

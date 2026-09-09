@@ -32,6 +32,15 @@ _QT_NAMED_KEYS.update(
 
 # int() ile anahtarlanıyor: event.key() düz bir int döndürür.
 _NAME_BY_KEY = {int(value): name for name, value in _QT_NAMED_KEYS.items()}
+# Yalnız TERS tabloyu genişletiyoruz: ileri tablo (_QT_NAMED_KEYS) ve onunla
+# core.keymap.NAMED_KEYS'i karşılaştıran bekçi testi (test_isimli_tus_
+# tablolari_ortusuyor) dokunulmadan kalsın. Qt Shift+Tab'ı ayrı bir tuş olarak
+# (Key_Backtab) yollar, keypad Enter'ı da Key_Return değil Key_Enter olarak;
+# ikisi de kendi adına ('tab', 'return') eşlenmezse ayar dosyasında geçerli
+# görünen 'alt+shift+tab' ya da 'return' sessizce hiç ateşlenmeyen bir tuş
+# olur (bkz. kod incelemesi).
+_NAME_BY_KEY[int(Qt.Key.Key_Backtab)] = "tab"
+_NAME_BY_KEY[int(Qt.Key.Key_Enter)] = "return"
 
 
 def panel_binding(event):

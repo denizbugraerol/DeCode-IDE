@@ -54,6 +54,22 @@ def test_normal_baglamasi_degistiricili_tusa_none_der():
     assert keys.normal_binding(olay) is None
 
 
+def test_panel_baglamasi_shift_tab_backtab_uzerinden_cozer():
+    """ Qt Shift+Tab için Key_Tab değil Key_Backtab yollar; ters tablo bunu
+    'tab' adına eşlemezse ayar dosyasındaki 'alt+shift+tab' doğrulamadan
+    geçer ama hiçbir zaman ateşlenmeyen ölü bir tuş olur. """
+    olay = _olay(Qt.Key.Key_Backtab, ALT_SHIFT)
+    assert keys.panel_binding(olay) == (frozenset({"alt", "shift"}), "tab")
+
+
+def test_panel_baglamasi_keypad_enter_i_return_olarak_cozer():
+    """ Keypad Enter Key_Return değil Key_Enter'dır; 'return' adına
+    eşlenmezse ayar dosyasındaki 'return' bağlaması keypad Enter'da hiç
+    ateşlenmez. """
+    olay = _olay(Qt.Key.Key_Enter, ALT_SHIFT)
+    assert keys.panel_binding(olay) == (frozenset({"alt", "shift"}), "return")
+
+
 def test_match_eylemi_bulur():
     harita = keymap.defaults()
     assert keys.match(_olay(Qt.Key.Key_N, ALT_SHIFT), harita, "panel") == "tab_new"
@@ -171,6 +187,26 @@ def test_sonradan_acilan_terminal_sekmesi_guncel_haritayi_alir(pencere):
 
     yeni = pencere.terminal_panel.new_tab()
     assert yeni._keymap.binding_of("tab_close") == (frozenset({"ctrl"}), "q")
+
+
+# --- Panel tablo bekçisi ---
+
+def test_panel_tablolari_ACTIONS_ile_ortusuyor(pencere):
+    """ Kayma bekçisi: ACTIONS'a yeni bir panel eylemi eklenip üç widget
+    tablosundan (ModalEditor, WelcomePage, TerminalView) biri unutulursa
+    ilk tuş basımında _panel_signal bir KeyError fırlatır ve PyQt6 bunu
+    reimplemented bir virtual metodun içinde yakalayamadığı için süreç
+    SIGABRT ile çöker (kullanıcının kaydedilmemiş arabellekleriyle
+    birlikte) — bu test o KeyError'ı üç tabloda da build zamanında yakalar. """
+    panel = [action.name for action in keymap.ACTIONS if action.group == "panel"]
+
+    pencere.show()
+    pencere.terminal_panel.toggle()          # ':term' — bir TerminalView kurar
+    terminal = pencere.terminal_panel.stack.currentWidget()
+
+    for widget in (pencere.editor, pencere.welcome_page, terminal):
+        for action in panel:
+            assert widget._panel_signal(action) is not None
 
 
 # --- Karşılama sayfası ---

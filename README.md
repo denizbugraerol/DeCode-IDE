@@ -104,40 +104,37 @@ yol tamamlaması yapar.
 
 ## Kısayollar
 
-`Alt+Shift` ailesi her modda ve odak neredeyse (editör ya da terminal) orada
-çalışır:
+Varsayılanda `Alt+Shift` ailesi (aşağıdaki `panel` grubu) her modda ve odak
+neredeyse (editör ya da terminal) orada çalışır — ama bu yalnız varsayılan:
+tüm kısayollar ayar dosyasının `[shortcuts]` bölümünden değiştirilebilir.
 
-| Kısayol | Ne yapar |
-|---|---|
-| `Alt+Shift+T` | Odağı editör ↔ terminal arasında taşır |
-| `Alt+Shift+N` | Yeni sekme |
-| `Alt+Shift+W` | Sekmeyi kapat |
-| `Alt+Shift+←` / `→` | Sekmeler arasında gez |
-
-Varsayılanda Ctrl kısayolu kullanılmaz — ama bu yalnız varsayılan: tüm
-kısayollar ayar dosyasının `[shortcuts]` bölümünden değiştirilebilir.
-
-| Eylem | Varsayılan | Grup |
-|---|---|---|
-| `terminal_focus` | `alt+shift+t` | panel |
-| `tab_new` | `alt+shift+n` | panel |
-| `tab_close` | `alt+shift+w` | panel |
-| `tab_next` | `alt+shift+right` | panel |
-| `tab_prev` | `alt+shift+left` | panel |
-| `insert_mode` | `i` | NORMAL |
-| `command_line` | `:` | NORMAL |
-| `search_next` | `n` | NORMAL |
-| `search_prev` | `N` | NORMAL |
-| `clear_search` | `escape` | NORMAL |
+| Eylem | Varsayılan | Grup | Ne yapar |
+|---|---|---|---|
+| `terminal_focus` | `alt+shift+t` | panel | Odağı editör ↔ terminal arasında taşır |
+| `tab_new` | `alt+shift+n` | panel | Yeni sekme |
+| `tab_close` | `alt+shift+w` | panel | Sekmeyi kapat |
+| `tab_next` | `alt+shift+right` | panel | Sonraki sekme |
+| `tab_prev` | `alt+shift+left` | panel | Önceki sekme |
+| `insert_mode` | `i` | normal | INSERT moduna geç |
+| `command_line` | `:` | normal | Komut satırını aç |
+| `search_next` | `n` | normal | Sonraki eşleşme |
+| `search_prev` | `N` | normal | Önceki eşleşme |
+| `clear_search` | `escape` | normal | Arama vurgusunu temizle |
 
 İki kural var:
 
 - **Panel** kısayolları her modda çalışır, bu yüzden `ctrl`, `alt` ya da
   `meta`'dan en az birini içermek zorundadır — yoksa o harf INSERT modunda
-  yazılamaz hale gelirdi.
+  yazılamaz hale gelirdi. macOS notu: Qt orada `ctrl`'u Command tuşuna,
+  `meta`'yı fiziksel Control tuşuna bağlar; DeCode bu takası taklit etmez,
+  ayar dosyasındaki ad Qt'nin adına birebir eşlenir.
 - **NORMAL** mod kısayolları tek karakter ya da `escape`'tir; değiştirici
   öneki alamazlar ve büyük/küçük harf ayrımı korunur (`n` ile `N` farklı
   komut).
+
+Panel kısayolları terminal odaktayken de yakalanır, shell'e hiç ulaşmaz —
+o yüzden shell'in kendisinin ihtiyaç duyduğu bir tuşu (ör. `ctrl+c`,
+`ctrl+d`) panel eylemine bağlamayın.
 
 İki eylem aynı tuşa düşerse yukarıdaki tablo sırasında önce gelen kazanır ve
 diğeri için bir uyarı basılır.
