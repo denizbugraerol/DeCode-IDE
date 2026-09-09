@@ -5,6 +5,8 @@ from PyQt6.QtTest import QTest
 
 import core.keymap as keymap
 import ui.keys as keys
+import core.config as config
+from ui.main_window import IDEWindow
 
 ALT_SHIFT = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
 CTRL = Qt.KeyboardModifier.ControlModifier
@@ -206,3 +208,78 @@ def test_karsilama_ipuclari_haritayi_yansitir(pencere):
     metin = pencere.welcome_page._hints_label.text()
     assert "Ctrl+T" in metin
     assert "Alt+Shift+N" not in metin
+
+
+# --- Uçtan uca: ayar dosyasından pencereye ---
+
+def test_ayardan_gelen_kisayol_pencereye_ulasir(qapp):
+    ayarlar = config.default_settings()
+    ayarlar["shortcuts"] = {"tab_new": "ctrl+t"}
+
+    pencere = IDEWindow(settings=ayarlar)
+    try:
+        pencere.show()
+        onceki = pencere.editor_tabs.count()
+        QTest.keyClick(pencere.editor, Qt.Key.Key_T, CTRL)
+        assert pencere.editor_tabs.count() == onceki + 1
+    finally:
+        pencere.terminal_panel.shutdown()
+        pencere.close()
+        pencere.deleteLater()
+        qapp.processEvents()
+
+
+def test_gecersiz_kisayol_uyarir_ve_varsayilanda_birakir(qapp, capsys):
+    ayarlar = config.default_settings()
+    ayarlar["shortcuts"] = {"tab_new": "i"}          # K6 ihlali
+
+    pencere = IDEWindow(settings=ayarlar)
+    try:
+        assert "tab_new" in capsys.readouterr().out
+        assert pencere.keymap.binding_of("tab_new") == (frozenset({"alt", "shift"}), "n")
+    finally:
+        pencere.terminal_panel.shutdown()
+        pencere.close()
+        pencere.deleteLater()
+        qapp.processEvents()
+
+
+def test_reload_kisayolu_canli_degistirir(pencere, tmp_path, monkeypatch):
+    """ K9: keymap de apply_settings'ten geçtiği için ':reload' canlı yeniden
+    atamayı bedavaya veriyor. """
+    yol = tmp_path / "config.toml"
+    yol.write_text('[shortcuts]\ntab_new = "ctrl+t"\n', encoding="utf-8")
+    monkeypatch.setattr("core.config.config_path", lambda: str(yol))
+
+    pencere.show()
+    pencere.reload_settings()
+
+    onceki = pencere.editor_tabs.count()
+    QTest.keyClick(pencere.editor, Qt.Key.Key_T, CTRL)
+    assert pencere.editor_tabs.count() == onceki + 1
+
+
+def test_reload_karsilama_ipuclarini_tazeler(pencere, tmp_path, monkeypatch):
+    yol = tmp_path / "config.toml"
+    yol.write_text('[shortcuts]\ntab_new = "ctrl+t"\n', encoding="utf-8")
+    monkeypatch.setattr("core.config.config_path", lambda: str(yol))
+
+    pencere.show()
+    pencere.reload_settings()
+    assert "Ctrl+T" in pencere.welcome_page._hints_label.text()
+
+
+def test_reload_terminal_oturumunu_koruyarak_yeniden_atar(pencere, tmp_path, monkeypatch):
+    yol = tmp_path / "config.toml"
+    yol.write_text('[shortcuts]\ntab_close = "ctrl+q"\n', encoding="utf-8")
+    monkeypatch.setattr("core.config.config_path", lambda: str(yol))
+
+    pencere.show()
+    pencere.terminal_panel.toggle()
+    onceki = pencere.terminal_panel.stack.count()
+
+    pencere.reload_settings()
+
+    assert pencere.terminal_panel.stack.count() == onceki      # oturum korundu
+    view = pencere.terminal_panel.stack.currentWidget()
+    assert view._keymap.binding_of("tab_close") == (frozenset({"ctrl"}), "q")

@@ -10,6 +10,7 @@ from ui.components.command_palette import CommandPalette
 from ui.components.welcome_page import WelcomePage
 from ui import theme
 from core import config
+from core import keymap as keymap_module
 from core.file_index import FileIndexWorker
 from core.symbols import extract_symbols
 from core.file_manager import FileManager
@@ -565,6 +566,17 @@ class IDEWindow(QMainWindow):
             editor.refresh_theme()
 
         self.terminal_panel.apply_settings(self.settings["terminal"])
+
+        # Tuş haritası da buradan dağıtılıyor: açılış ve ':reload' tek yoldan
+        # geçtiği için canlı yeniden atama ayrıca bir iş gerektirmiyor.
+        # Uyarılar palet/font uyarılarıyla aynı desende basılıyor.
+        self.keymap, keymap_warnings = keymap_module.build(self.settings["shortcuts"])
+        for warning in keymap_warnings:
+            print(warning)
+
+        self.editor_tabs.apply_keymap(self.keymap)
+        self.terminal_panel.apply_keymap(self.keymap)
+        self.welcome_page.apply_keymap(self.keymap)
 
         # Statusline rozeti de rengi/fontu setStyleSheet içine KOPYALIYOR
         # (bkz. StatusLine.set_mode); mod değişmemiş olsa bile burada yeniden
