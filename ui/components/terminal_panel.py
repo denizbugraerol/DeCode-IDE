@@ -4,7 +4,9 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
 
+from core import keymap
 from core.terminal_process import TerminalProcess
+from ui import keys
 from ui import theme
 
 
@@ -34,8 +36,6 @@ class TerminalView(QWidget):
         "brightcyan": "cyan", "brightwhite": "fg_bright",
     }
 
-    _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
-
     _KEY_SEQUENCES = {
         Qt.Key.Key_Return: b"\r", Qt.Key.Key_Enter: b"\r",
         Qt.Key.Key_Backspace: b"\x7f", Qt.Key.Key_Tab: b"\t",
@@ -54,6 +54,9 @@ class TerminalView(QWidget):
         self.exit_code = None
         self._finished = False
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Ayar dosyasından gelen tuş haritası; panel _add_view'de günceliyle
+        # değiştiriyor (bkz. TerminalPanel.apply_keymap).
+        self._keymap = keymap.defaults()
         self._process = TerminalProcess(rows=self.rows, cols=80, argv=argv,
                                         cwd=cwd, parent=self)
         self._process.output_ready.connect(self.update)
@@ -156,19 +159,21 @@ class TerminalView(QWidget):
     def focusNextPrevChild(self, _next):
         return False  # Tab odak değiştirmesin; shell'e gitsin
 
+    def apply_keymap(self, new_keymap):
+        self._keymap = new_keymap
+
     def keyPressEvent(self, event):
-        # Alt+Shift kısayolları terminale gönderilmez, panele iletilir.
-        if event.modifiers() == self._PANEL_MODIFIERS:
-            signal = {
-                Qt.Key.Key_T: self.return_focus_requested,
-                Qt.Key.Key_N: self.new_tab_requested,
-                Qt.Key.Key_W: self.close_tab_requested,
-                Qt.Key.Key_Right: self.next_tab_requested,
-                Qt.Key.Key_Left: self.prev_tab_requested,
-            }.get(event.key())
-            if signal is not None:
-                signal.emit()
-                return
+        # Panel kısayolları terminale gönderilmez, panele iletilir.
+        action = keys.match(event, self._keymap, "panel")
+        if action is not None:
+            {
+                "terminal_focus": self.return_focus_requested,
+                "tab_new": self.new_tab_requested,
+                "tab_close": self.close_tab_requested,
+                "tab_next": self.next_tab_requested,
+                "tab_prev": self.prev_tab_requested,
+            }[action].emit()
+            return
 
         data = self._translate_key(event)
         if data:
@@ -260,9 +265,10 @@ class TerminalPanel(QWidget):
     ile açılıp kapanır; birden fazla shell oturumunu sekmeler halinde tutar.
 
     Terminal odaktayken çıplak Escape shell'e (ör. vim'in INSERT modundan
-    çıkması için) gider; panel işlemleri Alt+Shift ailesindedir:
-    T odağı editöre döndürür, N yeni sekme, W sekmeyi kapatır,
-    Sağ/Sol sekmeler arasında gezer. """
+    çıkması için) gider; panel işlemleri tuş haritasından gelir (varsayılan Alt+Shift ailesi):
+    terminal_focus odağı editöre döndürür, tab_new yeni sekme,
+    tab_close sekmeyi kapatır, tab_next/tab_prev sekmeler arasında gezer.
+    Bkz. core/keymap.py ve ayar dosyasının [shortcuts] bölümü. """
 
     return_focus_requested = pyqtSignal()
 
@@ -275,6 +281,9 @@ class TerminalPanel(QWidget):
 
         self._font = None
         self._rows = TerminalView.ROWS
+        # Sekme fabrikası: her yeni TerminalView güncel haritayı _add_view'den
+        # alır (_rows / _font ile aynı desen).
+        self._keymap = keymap.defaults()
 
         self.tab_bar = QTabBar()
         self.tab_bar.setObjectName("terminalTabBar")
@@ -364,6 +373,7 @@ class TerminalPanel(QWidget):
     def _add_view(self, view):
         """ Sekme kurulumunun ortak yolu: shell sekmesi de komut sekmesi de
         buradan geçer. """
+        view.apply_keymap(self._keymap)
         if self._font is not None:
             view.apply_font(self._font)
 
@@ -439,6 +449,13 @@ class TerminalPanel(QWidget):
                 # Yükseklik ve PTY satır sayısı fontla birlikte ölçülüyor.
                 view.apply_font(self._font)
         self._recompute_height()
+
+    def apply_keymap(self, new_keymap):
+        """ Tuş haritasını saklar ve açık tüm oturumlara uygular. Saklamak
+        şart: sonradan açılan sekmeler de güncel haritayı almalı. """
+        self._keymap = new_keymap
+        for i in range(self.stack.count()):
+            self.stack.widget(i).apply_keymap(new_keymap)
 
     def _recompute_height(self):
         """ Panel yüksekliği = sekme çubuğu + terminal alanı. Terminalin

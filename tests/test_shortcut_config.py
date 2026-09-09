@@ -130,3 +130,42 @@ def test_escape_yeniden_atanabilir(pencere):
 
     QTest.keyClick(editor, Qt.Key.Key_X)
     assert editor.extraSelections() == []
+
+
+# --- Terminal dağıtımı ---
+
+def test_terminalde_panel_kisayolu_yeniden_atanabilir(pencere):
+    pencere.show()
+    pencere.terminal_panel.toggle()          # ':term' — panel açılır, bir sekme kurulur
+    harita, _u = keymap.build({"tab_new": "ctrl+t"})
+    pencere.terminal_panel.apply_keymap(harita)
+
+    view = pencere.terminal_panel.stack.currentWidget()
+    onceki = pencere.terminal_panel.stack.count()
+    QTest.keyClick(view, Qt.Key.Key_T, CTRL)
+    assert pencere.terminal_panel.stack.count() == onceki + 1
+
+
+def test_terminalde_yeniden_atanan_tus_shelle_gitmez(pencere):
+    """ Kısayol olarak eşleşen tuş terminale bayt olarak YAZILMAMALI. """
+    pencere.show()
+    pencere.terminal_panel.toggle()
+    harita, _u = keymap.build({"terminal_focus": "ctrl+g"})
+    pencere.terminal_panel.apply_keymap(harita)
+
+    view = pencere.terminal_panel.stack.currentWidget()
+    yazilanlar = []
+    view._process.write = lambda data: yazilanlar.append(data)
+
+    QTest.keyClick(view, Qt.Key.Key_G, CTRL)
+    assert yazilanlar == []
+
+
+def test_sonradan_acilan_terminal_sekmesi_guncel_haritayi_alir(pencere):
+    pencere.show()
+    pencere.terminal_panel.toggle()
+    harita, _u = keymap.build({"tab_close": "ctrl+q"})
+    pencere.terminal_panel.apply_keymap(harita)
+
+    yeni = pencere.terminal_panel.new_tab()
+    assert yeni._keymap.binding_of("tab_close") == (frozenset({"ctrl"}), "q")
