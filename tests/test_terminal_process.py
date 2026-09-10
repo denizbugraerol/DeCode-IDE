@@ -76,3 +76,37 @@ def test_baslamamis_surecte_olcu_saklanir(qapp):
     surec = TerminalProcess(rows=6, cols=40, argv=["/bin/sh", "-c", "exit 0"])
     surec.resize(9, 120)
     assert (surec.rows, surec.cols) == (9, 120)
+
+
+def test_close_toplanamayan_cocukta_asili_kalmaz(qapp, monkeypatch):
+    """ close() hiçbir koşulda BLOKLAYAN waitpid çağırmamalı.
+
+    macOS CI'da yaşanan kilit buydu: pty.fork() çok iş parçacıklı bir süreçten
+    çağrıldığında çocuk, fork ile exec arasında sıkışıp yarım saniyede
+    toplanabilir hâle gelmiyor. close() o zaman SIGKILL'in ardından zaman
+    aşımsız bir os.waitpid(pid, 0)'a giriyor ve dönmüyor -- bu çağrı ANA İŞ
+    PARÇACIĞINDA (IDEWindow.closeEvent) olduğu için uygulama kapanışta
+    sonsuza kadar donuyor.
+
+    Test gerçek bir öldürülemez süreç kuramaz; onun yerine değişmezi
+    doğruluyor: çocuk hiç toplanmasa bile close() dönmeli ve her waitpid
+    çağrısı WNOHANG taşımalı. """
+    surec = TerminalProcess(rows=6, cols=40)
+    surec._pid = 424242            # gerçek bir süreç değil; sistem çağrıları taklit
+    surec._master_fd = None
+
+    bayraklar = []
+
+    def sahte_waitpid(pid, flags):
+        bayraklar.append(flags)
+        return (0, 0)              # "henüz toplanamadı" -- hiç toplanmayacak
+
+    monkeypatch.setattr(os, "waitpid", sahte_waitpid)
+    monkeypatch.setattr(os, "kill", lambda pid, sig: None)
+
+    surec.close()
+
+    assert bayraklar, "close() çocuğu hiç yoklamamış"
+    assert all(f & os.WNOHANG for f in bayraklar), (
+        f"close() bloklayan waitpid çağırdı (bayraklar={bayraklar})")
+    assert surec._pid is None
