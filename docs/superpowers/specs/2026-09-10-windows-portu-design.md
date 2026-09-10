@@ -146,17 +146,24 @@ kuyruklu bağlantıyla ana thread. Desen depoda zaten var:
 `core/file_index.py:43`, `FileIndexWorker`.
 
 **İlk iş: `pywinpty`'nin okuma tipini ölçmek.** `pywinpty` 2.x'in `read()`'i
-büyük olasılıkla `str` döndürüyor, `bytes` değil — ama bu **varsayım, doğrulama
-maddesi**. Sözleşme bytes olduğu için transport normalize edecek. Gerçek
-tehlike, pywinpty'nin çok baytlı bir UTF-8 karakteri iki okuma arasında
-bölmesi: naif yeniden kodlama orada bozulur. Ölçüm (Türkçe karakterli uzun
-çıktı) sonucuna göre iki yoldan biri:
+`str` mi `bytes` mi döndürdüğü **doğrulama maddesi**, varsayım değil.
+Sözleşme bytes olduğu için transport normalize edecek.
 
-- artık-tampon tutan bir `codecs.getincrementaldecoder("utf-8")`, ya da
-- Windows'ta `pyte.ByteStream` yerine `pyte.Stream` (str tabanlı).
+Burada kritik bir olgu var ve tasarımı basitleştiriyor: **`pyte.ByteStream`
+zaten kendi içinde artık tutan bir UTF-8 decoder'ı taşıyor**
+(`codecs.getincrementaldecoder("utf-8")("replace")`, bkz. `pyte/streams.py`),
+yani çok baytlı bir karakter iki `feed()` çağrısı arasında bölünse bile doğru
+birleşiyor. Dolayısıyla transport'un kendi tamponunu tutmasına **gerek yok**.
+Ölçümün üç olası sonucu:
 
-İkincisi `_PtyBackedScreen`'in kurulumunu platforma bağlar; bu yüzden
-**birincisi tercih edilir** ve ancak o çalışmazsa ikincisine geçilir.
+| Ölçüm | Karşılık |
+|---|---|
+| `bytes` döndürüyor | Doğrudan geçir. `pyte.ByteStream` sınırları zaten hallediyor — **ek iş yok**, risk ortadan kalkıyor. |
+| `str`, içeride tamponluyor | `.encode("utf-8")` kayıpsız; ByteStream yeniden çözer. Ek iş yok. |
+| `str`, tamponlamıyor | Bozulma **pywinpty'nin içinde** olmuş demektir; dışarıdan tampon tutmak onu düzeltemez. Tek çıkar yol, bytes veren alt seviye `winpty.PTY` API'sine inmek. |
+
+Yani gerçek risk yalnız üçüncü satır ve karşılığı "kendi tamponumuzu yazmak"
+değil, "alt seviye API'ye inmek". Ölçüm bunu ilk adımda kesinleştirecek.
 
 **argv → komut satırı.** `pty.fork` + `execvpe` yerine ConPTY tek bir komut
 satırı *dizesi* alır. `subprocess.list2cmdline(argv)` kullanılacak — boşluklu
@@ -396,7 +403,7 @@ Windows makinesinde, **donmuş `.exe` üzerinde**:
 
 | Risk | Şiddet | Karşılık |
 |---|---|---|
-| `pywinpty` `str` döndürüyor ve UTF-8 karakteri okuma sınırında bölünüyor | **Yüksek** — bozulma sessiz ve aralıklı | İlk iş olarak ölçülecek; artık-tampon tutan incremental decoder, olmazsa `pyte.Stream`. Test 5 ve sözleşme testi bunu hedefliyor. |
+| `pywinpty` `str` döndürüyor **ve** çok baytlı karakteri okuma sınırında tamponlamadan bölüyor | Orta — bozulma sessiz ve aralıklı, ama yalnız bir olasılıkta gerçekleşiyor | `pyte.ByteStream` sınır birleştirmeyi zaten yapıyor (§C tablosu), yani ilk iki olasılıkta risk yok. Üçüncüde alt seviye `winpty.PTY` API'sine inilir. İlk adımda ölçülüyor; sözleşme testi ve elle doğrulama 5 bunu hedefliyor. |
 | Reader thread kapanışta dönmüyor | **Yüksek** — kullanıcı uygulamayı kapatamaz | Süreli `wait` + thread'i bırakma; bağlantı önce kesiliyor. Elle doğrulama 12. |
 | PyInstaller `winpty` DLL'lerini toplamıyor | Orta — yalnız donmuş binary'de görünür | `collect_dynamic_libs`, ve güvence `--version`'dan değil elle doğrulama 4'ten geliyor (§F). |
 | ConPTY gereksinimi (Win10 1809+) | Düşük | Sürüm notunda yazılı, hata yolu açık mesaj basıyor. |
