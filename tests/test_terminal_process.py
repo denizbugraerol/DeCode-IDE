@@ -5,6 +5,7 @@ araçlarla — PlatformIO kurulu olması gerekmez. """
 import os
 
 from core.terminal_process import TerminalProcess
+from tests.platform_commands import echo_argv, exit_argv, missing_argv, pwd_argv
 
 
 def _calistir(bekle, argv, cwd=None, cols=200):
@@ -17,7 +18,7 @@ def _calistir(bekle, argv, cwd=None, cols=200):
 
 
 def test_argv_ile_komut_calisir_ve_ciktisi_ekranda(qapp, bekle):
-    surec, kodlar = _calistir(bekle, ["/bin/echo", "merhaba"])
+    surec, kodlar = _calistir(bekle, echo_argv("merhaba"))
     try:
         assert kodlar == [0]
         assert "merhaba" in "".join(surec.screen.display)
@@ -26,11 +27,9 @@ def test_argv_ile_komut_calisir_ve_ciktisi_ekranda(qapp, bekle):
 
 
 def test_basarisiz_komutun_cikis_kodu(qapp, bekle):
-    # '/bin/false' DEĞİL: macOS'ta o dosya /usr/bin'de, /bin'de yok. Orada
-    # exec başarısız olur ve child 127 döner ('command not found'), yani test
-    # ölçmek istediği şeyi değil, kendi taşınabilirsizliğini ölçer.
-    # '/bin/sh' her iki sistemde de POSIX güvencesiyle var.
-    surec, kodlar = _calistir(bekle, ["/bin/sh", "-c", "exit 1"])
+    # Komutun kendisi platforma göre seçiliyor; gerekçe için bkz.
+    # tests/platform_commands.py.
+    surec, kodlar = _calistir(bekle, exit_argv(1))
     try:
         assert kodlar == [1]
         assert surec.exit_code == 1
@@ -41,7 +40,7 @@ def test_basarisiz_komutun_cikis_kodu(qapp, bekle):
 def test_olmayan_komut_127_dondurur(qapp, bekle):
     """ exec başarısız olunca child 127 ile çıkar (kabuk geleneği:
     'command not found'). Sekme başlığında '✗ (127)' olarak görünür. """
-    surec, kodlar = _calistir(bekle, ["/olmayan/komut"])
+    surec, kodlar = _calistir(bekle, missing_argv())
     try:
         assert kodlar == [127]
     finally:
@@ -50,7 +49,7 @@ def test_olmayan_komut_127_dondurur(qapp, bekle):
 
 def test_cwd_uygulanir(qapp, bekle, tmp_path):
     hedef = os.path.realpath(str(tmp_path))
-    surec, _kodlar = _calistir(bekle, ["/bin/pwd"], cwd=hedef)
+    surec, _kodlar = _calistir(bekle, pwd_argv(), cwd=hedef)
     try:
         assert os.path.basename(hedef) in "".join(surec.screen.display)
     finally:
@@ -73,7 +72,7 @@ def test_baslamamis_surecte_olcu_saklanir(qapp):
     (yoksa komut sekmesi 80 sütunla başlar ve çıktı yanlış sarmalanır). """
     # argv hiç çalıştırılmıyor (süreç başlatılmıyor), ama macOS'ta var
     # olmayan bir yolu örnek bırakmayalım -- kopyalayan yanılır.
-    surec = TerminalProcess(rows=6, cols=40, argv=["/bin/sh", "-c", "exit 0"])
+    surec = TerminalProcess(rows=6, cols=40, argv=exit_argv(0))
     surec.resize(9, 120)
     assert (surec.rows, surec.cols) == (9, 120)
 

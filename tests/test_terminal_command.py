@@ -1,11 +1,14 @@
 """ Terminal panelinde komut sekmesi: başlık, çıkış durumu, yeniden kullanım.
-Gerçek PlatformIO gerekmiyor; /bin/echo ve /bin/false yetiyor. """
+Gerçek PlatformIO gerekmiyor; platforma göre seçilen minik kabuk komutları
+yetiyor (bkz. tests/platform_commands.py). """
 from PyQt6.QtGui import QShowEvent
+
+from tests.platform_commands import echo_argv, exit_argv
 
 
 def test_komut_sekmesi_baslik_ve_basarili_cikis(pencere, bekle):
     panel = pencere.terminal_panel
-    view = panel.run_command(["/bin/echo", "merhaba"], "pio build")
+    view = panel.run_command(echo_argv("merhaba"), "pio build")
 
     assert view.title() == "pio build"
     assert bekle(view.is_finished)
@@ -15,9 +18,9 @@ def test_komut_sekmesi_baslik_ve_basarili_cikis(pencere, bekle):
 
 
 def test_basarisiz_komut_sekmede_isaretlenir(pencere, bekle):
-    # '/bin/false' macOS'ta yok (/usr/bin'de); orada exec 127 döndürür ve
-    # test başlıktaki '✗ (1)' yerine '✗ (127)' görür.
-    view = pencere.terminal_panel.run_command(["/bin/sh", "-c", "exit 1"], "pio upload")
+    # Komutun kendisi platforma göre seçiliyor; gerekçe için bkz.
+    # tests/platform_commands.py.
+    view = pencere.terminal_panel.run_command(exit_argv(1), "pio upload")
     assert bekle(view.is_finished)
     assert view.title() == "pio upload ✗ (1)"
 
@@ -27,11 +30,11 @@ def test_ayni_komut_ayni_sekmeyi_kullanir(pencere, bekle):
     süslenmiş başlığa ('pio build ✓') bakarsa burada kaçırır ve yeni sekme
     açar. """
     panel = pencere.terminal_panel
-    ilk = panel.run_command(["/bin/echo", "bir"], "pio build")
+    ilk = panel.run_command(echo_argv("bir"), "pio build")
     assert bekle(ilk.is_finished)
     sekme_sayisi = panel.stack.count()
 
-    ikinci = panel.run_command(["/bin/echo", "iki"], "pio build")
+    ikinci = panel.run_command(echo_argv("iki"), "pio build")
     assert ikinci is ilk
     assert panel.stack.count() == sekme_sayisi
     assert bekle(ikinci.is_finished)
@@ -40,8 +43,8 @@ def test_ayni_komut_ayni_sekmeyi_kullanir(pencere, bekle):
 
 def test_farkli_komut_yeni_sekme_acar(pencere, bekle):
     panel = pencere.terminal_panel
-    panel.run_command(["/bin/echo", "bir"], "pio build")
-    panel.run_command(["/bin/echo", "iki"], "pio upload")
+    panel.run_command(echo_argv("bir"), "pio build")
+    panel.run_command(echo_argv("iki"), "pio upload")
     assert panel.stack.count() == 2
 
 
@@ -49,7 +52,7 @@ def test_biten_sekme_yeniden_gorununce_komutu_tekrarlamaz(pencere, bekle):
     """ En tehlikeli regresyon: showEvent'in 'koşmuyorsa başlat' kuralı,
     biten bir komut sekmesinde ':term' ile panel gizlenip açılınca komutu
     yeniden çalıştırır — 'pio upload' için bu gerçek donanıma yazmak demek. """
-    view = pencere.terminal_panel.run_command(["/bin/echo", "bir"], "pio upload")
+    view = pencere.terminal_panel.run_command(echo_argv("bir"), "pio upload")
     assert bekle(view.is_finished)
 
     view.showEvent(QShowEvent())
