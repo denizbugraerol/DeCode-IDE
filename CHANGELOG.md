@@ -22,6 +22,19 @@
 - Karşılama sayfasındaki kısayol ipuçları artık sabit metin değil, tuş
   haritasından üretiliyor: kendi tuşunu atadığında ipucu da onu gösterir.
 
+### Düzeltildi
+- **macOS'ta uygulama kapanışta donabiliyordu.** `TerminalProcess.close()`
+  terminal sürecini SIGKILL ile temizledikten sonra zaman aşımsız bir
+  `os.waitpid(pid, 0)` ile bekliyordu. macOS'ta `pty.fork()` çok iş
+  parçacıklı bir süreçten çağrıldığında çocuk fork ile exec arasında
+  sıkışabiliyor ve toplanabilir hâle gelmiyor; o çağrının dönüşü olmadığı
+  ve ana iş parçacığında (`IDEWindow.closeEvent`) çalıştığı için arayüz
+  sonsuza kadar donuyordu. Bekleme artık her koşulda sınırlı: yalnız
+  `WNOHANG` ile yokluyor, süre dolarsa çocuğu bırakıyor.
+- CI artık asılı kalan bir koşuyu 6 saat beklemiyor: `faulthandler_timeout`
+  eşiği aşılınca tüm iş parçacıklarının yığın izi basılıyor ve çıktı `tee`
+  ile canlı akıyor, yani nerede kilitlendiği loga düşüyor.
+
 ## v0.2.0 — 04 Eyl 2026
 
 ### Eklendi
