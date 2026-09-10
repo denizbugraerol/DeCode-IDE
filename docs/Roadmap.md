@@ -159,7 +159,7 @@ yer tutuyor.
 | Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | `embedded/` |
 | Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
-| `forkpty()` çok iş parçacıklı süreçte | `:ts` taraması sürerken `:term` açmak uyarı üretiyor | `core/terminal_process.py` |
+| `forkpty()` çok iş parçacıklı süreçte | Uyarı duruyor; macOS'ta bunun yol açtığı kapanış kilidi çözüldü (`close()` artık yalnız `WNOHANG` ile bekliyor) | `core/terminal_process.py` |
 | Tema kodda sabit | Çözüldü ([Sprint 09](sprint/sprint-09.md)): renkler `ui/theme.py`'deki tek palete taşındı, ayar dosyasının `[colors]` bölümünden özelleştirilebiliyor | `ui/theme.py` |
 
 ## Faz kilometre taşları

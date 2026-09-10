@@ -14,7 +14,8 @@ Kısayollar ayar dosyasından özelleştirilebilir hale geldi.
 - [x] `IDEWindow.apply_settings`: haritayı kuruyor (`keymap.build(settings["shortcuts"])`) ve üç widget'a dağıtıyor; açılış ve `:reload` tek yoldan geçtiği için canlı yeniden atama ayrıca bir iş gerektirmiyor
 - [x] 58 yeni test (211 → 269) — `tests/test_keymap.py`, `tests/test_shortcut_config.py`, `tests/test_config.py` ekleri
 - [x] README / CLAUDE.md / Roadmap belgeleri güncellendi (bu görev)
-- [x] Yeşil CI (Linux ve macOS: 272/272) ve v0.3.0 sürümü
+- [x] Yeşil CI (Linux ve macOS: 273/273) ve v0.3.0 sürümü — macOS'ta ortaya
+      çıkan kapanış kilidi sürüm öncesi düzeltildi (bkz. CHANGELOG v0.3.0)
 
 ## Teknik notlar
 - **K6'nın gerekçesi.** Panel kısayolları her modda ve mod dağıtımından ÖNCE

@@ -203,6 +203,23 @@ class TerminalProcess(QObject):
         self.finished.emit()
         self.exited.emit(self.exit_code)
 
+    def _reap(self, timeout):
+        """ Çocuğu en fazla 'timeout' saniye boyunca WNOHANG ile yoklar.
+
+        Toplandıysa -- ya da zaten bizim çocuğumuz değilse -- True, süre
+        dolduysa False döner. BLOKLAYAN waitpid bilinçli olarak hiç
+        kullanılmıyor; bkz. close(). """
+        son = time.monotonic() + timeout
+        while True:
+            try:
+                if os.waitpid(self._pid, os.WNOHANG)[0] != 0:
+                    return True
+            except (ChildProcessError, OSError):
+                return True
+            if time.monotonic() >= son:
+                return False
+            time.sleep(0.02)
+
     def close(self):
         """ Panel gizlenirken DEĞİL, sadece uygulama tamamen kapanırken çağrılır
         (bkz. IDEWindow.closeEvent). Önce SIGHUP, sonra kısa bir bekleme,
@@ -216,19 +233,24 @@ class TerminalProcess(QObject):
                 os.kill(self._pid, signal.SIGHUP)
             except ProcessLookupError:
                 pass
-            for _ in range(25):
-                try:
-                    if os.waitpid(self._pid, os.WNOHANG)[0] != 0:
-                        break
-                except (ChildProcessError, OSError):
-                    break
-                time.sleep(0.02)
-            else:
+            if not self._reap(0.5):
                 try:
                     os.kill(self._pid, signal.SIGKILL)
-                    os.waitpid(self._pid, 0)
-                except (ProcessLookupError, ChildProcessError, OSError):
+                except (ProcessLookupError, OSError):
                     pass
+                # SIGKILL'den sonra da YALNIZ yoklayarak bekliyoruz. Burada
+                # eskiden bloklayan bir os.waitpid(pid, 0) vardı ve macOS'ta
+                # gerçekten asılı kalıyordu: pty.fork() çok iş parçacıklı bir
+                # süreçten çağrıldığında çocuk fork ile exec arasında sıkışıp
+                # toplanabilir hâle gelmiyor. Bu kod ANA İŞ PARÇACIĞINDA
+                # (IDEWindow.closeEvent) çalıştığı için sonucu uygulamanın
+                # kapanışta sonsuza kadar donmasıydı.
+                #
+                # Süre dolarsa çocuğu bırakıyoruz: SIGKILL almış bir süreç
+                # zaten ölüyor, biz toplamazsak da süreç çıkışında init
+                # topluyor. Geride kalan bir zombi, donmuş bir arayüzden
+                # kesinlikle iyidir.
+                self._reap(0.5)
             self._pid = None
         if self._master_fd is not None:
             try:
