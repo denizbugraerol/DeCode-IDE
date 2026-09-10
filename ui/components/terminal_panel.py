@@ -1,5 +1,3 @@
-import os
-
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
@@ -106,7 +104,9 @@ class TerminalView(QWidget):
     # --- Oturum ---
 
     def shell_name(self):
-        return os.path.basename(os.environ.get("SHELL", "/bin/bash"))
+        """ Kabuk adını sürece soruyor: '$SHELL' yalnız POSIX'te var, Windows'ta
+        kabuk seçimi transport'un işi (bkz. core/pty_windows.py). """
+        return self._process.shell_name()
 
     def _on_exited(self, exit_code):
         self._finished = True

@@ -1,14 +1,13 @@
-import fcntl
 import os
-import pty
-import signal
-import struct
 import sys
-import termios
-import time
 
 import pyte
-from PyQt6.QtCore import QObject, QSocketNotifier, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
+
+if sys.platform == "win32":
+    from core.pty_windows import WindowsTransport as _Transport
+else:
+    from core.pty_posix import PosixTransport as _Transport
 
 
 # PyInstaller ile dondurulmuş süreçte bootloader'ın ezdiği, çocuk sürece
@@ -58,11 +57,11 @@ class _PtyBackedScreen(pyte.Screen):
 
 
 class TerminalProcess(QObject):
-    """ Gerçek bir shell'i (pty.fork ile) başlatıp PTY master fd'sini Qt'nin
-    event loop'una (QSocketNotifier) bağlayan ve pyte ile gelen byte'ları
-    yorumlayan arkaplan bileşeni. Qt widget'ından bağımsızdır — çizim işini
-    ui/components/terminal_panel.py yapar, bu sınıf sadece süreç + ekran
-    durumunu yönetir. """
+    """ Bir süreci sözde-terminal üzerinde başlatıp çıktısını pyte ile
+    yorumlayan bileşen. Platforma özgü iş (spawn, okuma döngüsü, winsize,
+    kill) bir transport nesnesine devredilmiştir: POSIX'te
+    core/pty_posix.py, Windows'ta core/pty_windows.py. Qt widget'ından
+    bağımsızdır -- çizimi ui/components/terminal_panel.py yapar. """
 
     output_ready = pyqtSignal()   # pyte ekranı güncellendi -> panel repaint etsin
     finished = pyqtSignal()       # child süreç sona erdi
@@ -76,76 +75,59 @@ class TerminalProcess(QObject):
     def __init__(self, rows=9, cols=80, argv=None, cwd=None, parent=None):
         super().__init__(parent)
         self.rows, self.cols = rows, cols
-        self.argv = argv        # None -> kullanıcının login shell'i (':term')
+        self.argv = argv        # None -> kullanıcının varsayılan kabuğu (':term')
         self.cwd = cwd          # None -> sürecin mevcut çalışma dizini
         self.exit_code = None
-        self._pid = None
-        self._master_fd = None
-        self._notifier = None
         self.screen = None
         self._stream = None
+        self._transport = _Transport(parent=self)
 
     def is_running(self):
-        return self._pid is not None
+        return self._transport.is_alive()
+
+    def shell_name(self):
+        """ Sekme başlığında görünen kabuk adı. Windows'ta '.exe' atılır;
+        sekmede 'powershell.exe' değil 'powershell' yazsın. """
+        name = os.path.basename(self._transport.default_shell_argv()[0])
+        return name[:-4] if name.lower().endswith(".exe") else name
 
     def start(self):
-        """ pty.fork() ile gerçek bir sözde-terminal (pseudo-terminal) üzerinde
-        bir süreç başlatır: argv verilmemişse kullanıcının kendi shell'ini
-        (SHELL ortam değişkeni, yoksa /bin/bash) login shell olarak, verilmişse
-        doğrudan o komutu (':pio build' gibi). """
         if self.is_running():
             return
         env = child_environment()
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
 
-        if self.argv is None:
-            shell = os.environ.get("SHELL", "/bin/bash")
-            argv = [shell, "-l"]
-        else:
-            argv = list(self.argv)
+        argv = (list(self.argv) if self.argv is not None
+                else self._transport.default_shell_argv())
 
         self.exit_code = None
-        pid, master_fd = pty.fork()
-        if pid == 0:
-            # Child süreç: pty.fork() setsid + TIOCSCTTY + 0/1/2 dup işini
-            # zaten kendi içinde halletti. Burada tek iş exec etmek.
-            try:
-                if self.cwd:
-                    os.chdir(self.cwd)
-                os.execvpe(argv[0], argv, env)
-            except Exception:
-                # 127: kabuk geleneğinde "komut bulunamadı"; sekme başlığında
-                # '✗ (127)' olarak görünsün diye 1 değil bu.
-                os._exit(127)
-
-        # --- Parent süreç devam ediyor ---
-        self._pid = pid
-        self._master_fd = master_fd
-        flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
-        fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-        self.screen = _PtyBackedScreen(self.cols, self.rows, write_back=self._write_to_master)
+        # Ekran spawn'DAN ÖNCE kuruluyor: Windows'ta okuma thread'i spawn
+        # içinde başlıyor ve ilk parça ana döngüye kuyruklanabiliyor. Ekran
+        # o an hazır değilse _on_data None bir stream'e feed eder.
+        self.screen = _PtyBackedScreen(self.cols, self.rows, write_back=self.write)
         self._stream = pyte.ByteStream(self.screen)
-        self._apply_winsize()
 
-        self._notifier = QSocketNotifier(master_fd, QSocketNotifier.Type.Read, self)
-        self._notifier.activated.connect(self._drain_master)
+        self._transport.spawn(argv, self.cwd, env, self.rows, self.cols,
+                              self._on_data, self._on_eof)
 
-    def _apply_winsize(self):
-        if self._master_fd is None:
-            return
-        # struct winsize: ws_row, ws_col, ws_xpixel, ws_ypixel
-        packed = struct.pack("HHHH", self.rows, self.cols, 0, 0)
-        fcntl.ioctl(self._master_fd, termios.TIOCSWINSZ, packed)
-        # Not: TIOCSWINSZ çekirdek tarafından otomatik olarak ön plandaki
-        # process group'a SIGWINCH gönderir; elle sinyal yollamaya gerek yok.
+    def _on_data(self, data):
+        try:
+            self._stream.feed(data)
+        except Exception:
+            pass  # pyte'ın çözemediği zararsız bir kaçış dizisi; devam et
+        self.output_ready.emit()
+
+    def _on_eof(self):
+        self.exit_code = self._transport.exit_code()
+        self.finished.emit()
+        self.exited.emit(self.exit_code)
 
     def resize(self, rows, cols):
-        """ Ölçüyü her hâlükârda saklar. PTY boyutu start() sırasında
-        kurulduğu için, süreç henüz başlamamışken gelen ölçü ATILIRSA komut
-        sekmesi 80 sütunla başlar ve 'pio'nun ilk çıktısı yanlış sarmalanır;
-        bu yüzden erken dönüş yalnız ioctl/screen kısmını atlıyor. """
+        """ Ölçüyü her hâlükârda saklar. PTY boyutu spawn sırasında kurulduğu
+        için, süreç henüz başlamamışken gelen ölçü ATILIRSA komut sekmesi 80
+        sütunla başlar ve 'pio'nun ilk çıktısı yanlış sarmalanır; bu yüzden
+        erken dönüş yalnız ekran/winsize kısmını atlıyor. """
         if rows == self.rows and cols == self.cols:
             return
         self.rows, self.cols = rows, cols
@@ -154,107 +136,12 @@ class TerminalProcess(QObject):
         # DİKKAT: Screen() constructor'ı (columns, lines) sırasında ama
         # resize() metodu (lines, columns) sırasında bekliyor.
         self.screen.resize(lines=rows, columns=cols)
-        self._apply_winsize()
+        self._transport.set_size(rows, cols)
 
     def write(self, data: bytes):
-        if self._master_fd is None:
-            return
-        try:
-            os.write(self._master_fd, data)
-        except OSError:
-            pass  # shell tam o anda öldüyse (EPIPE/EIO) sessizce yok say
-
-    def _write_to_master(self, data: bytes):
-        self.write(data)
-
-    def _drain_master(self, *_args):
-        try:
-            data = os.read(self._master_fd, 65536)
-        except OSError:
-            data = b""  # PTY'de EOF genelde b"" değil EIO olarak gelir
-        if not data:
-            self._handle_child_exit()
-            return
-        try:
-            self._stream.feed(data)
-        except Exception:
-            pass  # pyte'ın çözemediği zararsız bir kaçış dizisi; devam et
-        self.output_ready.emit()
-
-    def _handle_child_exit(self):
-        if self._pid is None:
-            return          # close() zaten temizlemiş
-        if self._notifier:
-            self._notifier.setEnabled(False)
-        try:
-            # WNOHANG DEĞİL: PTY'de EOF ile çocuğun reap edilebilir hâle
-            # gelmesi arasında yarış var, WNOHANG (0, 0) dönüp çıkış kodunu
-            # kaçırabiliyor. EOF geldiyse çocuk zaten ölmek üzere olduğundan
-            # bloklayan bekleme pratikte anında dönüyor.
-            _pid, status = os.waitpid(self._pid, 0)
-            # Sinyalle ölen süreçte (ör. Ctrl+C -> SIGINT) negatif değer döner.
-            self.exit_code = os.waitstatus_to_exitcode(status)
-        except (ChildProcessError, OSError):
-            self.exit_code = -1
-        # Reap edildi: is_running() artık dürüst olsun. Bayat bir _pid,
-        # "biten sekme yeniden çalışmasın" korumasını sessizce üstlenir ve
-        # TerminalView'daki asıl koruma (_finished) ölü kodmuş gibi görünür.
-        self._pid = None
-        self.finished.emit()
-        self.exited.emit(self.exit_code)
-
-    def _reap(self, timeout):
-        """ Çocuğu en fazla 'timeout' saniye boyunca WNOHANG ile yoklar.
-
-        Toplandıysa -- ya da zaten bizim çocuğumuz değilse -- True, süre
-        dolduysa False döner. BLOKLAYAN waitpid bilinçli olarak hiç
-        kullanılmıyor; bkz. close(). """
-        son = time.monotonic() + timeout
-        while True:
-            try:
-                if os.waitpid(self._pid, os.WNOHANG)[0] != 0:
-                    return True
-            except (ChildProcessError, OSError):
-                return True
-            if time.monotonic() >= son:
-                return False
-            time.sleep(0.02)
+        self._transport.write(data)
 
     def close(self):
-        """ Panel gizlenirken DEĞİL, sadece uygulama tamamen kapanırken çağrılır
-        (bkz. IDEWindow.closeEvent). Önce SIGHUP, sonra kısa bir bekleme,
-        gerekirse SIGKILL ile temizler. """
-        if self._notifier:
-            self._notifier.setEnabled(False)
-            self._notifier.deleteLater()
-            self._notifier = None
-        if self._pid is not None:
-            try:
-                os.kill(self._pid, signal.SIGHUP)
-            except ProcessLookupError:
-                pass
-            if not self._reap(0.5):
-                try:
-                    os.kill(self._pid, signal.SIGKILL)
-                except (ProcessLookupError, OSError):
-                    pass
-                # SIGKILL'den sonra da YALNIZ yoklayarak bekliyoruz. Burada
-                # eskiden bloklayan bir os.waitpid(pid, 0) vardı ve macOS'ta
-                # gerçekten asılı kalıyordu: pty.fork() çok iş parçacıklı bir
-                # süreçten çağrıldığında çocuk fork ile exec arasında sıkışıp
-                # toplanabilir hâle gelmiyor. Bu kod ANA İŞ PARÇACIĞINDA
-                # (IDEWindow.closeEvent) çalıştığı için sonucu uygulamanın
-                # kapanışta sonsuza kadar donmasıydı.
-                #
-                # Süre dolarsa çocuğu bırakıyoruz: SIGKILL almış bir süreç
-                # zaten ölüyor, biz toplamazsak da süreç çıkışında init
-                # topluyor. Geride kalan bir zombi, donmuş bir arayüzden
-                # kesinlikle iyidir.
-                self._reap(0.5)
-            self._pid = None
-        if self._master_fd is not None:
-            try:
-                os.close(self._master_fd)
-            except OSError:
-                pass
-            self._master_fd = None
+        """ Panel gizlenirken DEĞİL, sadece uygulama tamamen kapanırken
+        çağrılır (bkz. IDEWindow.closeEvent). """
+        self._transport.close(timeout=0.5)

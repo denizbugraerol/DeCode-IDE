@@ -3,9 +3,16 @@
 Gerçek süreç başlatılır (pty.fork), ama yalnız /bin altındaki minik
 araçlarla — PlatformIO kurulu olması gerekmez. """
 import os
+import sys
+
+import pytest
 
 from core.terminal_process import TerminalProcess
 from tests.platform_commands import echo_argv, exit_argv, missing_argv, pwd_argv
+
+pytestmark_posix = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="PosixTransport'un iç davranışı; Windows'ta modül import edilemez")
 
 
 def _calistir(bekle, argv, cwd=None, cols=200):
@@ -77,6 +84,7 @@ def test_baslamamis_surecte_olcu_saklanir(qapp):
     assert (surec.rows, surec.cols) == (9, 120)
 
 
+@pytestmark_posix
 def test_close_toplanamayan_cocukta_asili_kalmaz(qapp, monkeypatch):
     """ close() hiçbir koşulda BLOKLAYAN waitpid çağırmamalı.
 
@@ -89,10 +97,15 @@ def test_close_toplanamayan_cocukta_asili_kalmaz(qapp, monkeypatch):
 
     Test gerçek bir öldürülemez süreç kuramaz; onun yerine değişmezi
     doğruluyor: çocuk hiç toplanmasa bile close() dönmeli ve her waitpid
-    çağrısı WNOHANG taşımalı. """
-    surec = TerminalProcess(rows=6, cols=40)
-    surec._pid = 424242            # gerçek bir süreç değil; sistem çağrıları taklit
-    surec._master_fd = None
+    çağrısı WNOHANG taşımalı.
+
+    Transport'a DOĞRUDAN bakıyor: dikişten sonra süreç kimliği ve fd orada
+    yaşıyor, TerminalProcess'te değil. """
+    from core.pty_posix import PosixTransport
+
+    transport = PosixTransport()
+    transport._pid = 424242        # gerçek bir süreç değil; sistem çağrıları taklit
+    transport._master_fd = None
 
     bayraklar = []
 
@@ -103,9 +116,9 @@ def test_close_toplanamayan_cocukta_asili_kalmaz(qapp, monkeypatch):
     monkeypatch.setattr(os, "waitpid", sahte_waitpid)
     monkeypatch.setattr(os, "kill", lambda pid, sig: None)
 
-    surec.close()
+    transport.close(timeout=0.05)
 
     assert bayraklar, "close() çocuğu hiç yoklamamış"
     assert all(f & os.WNOHANG for f in bayraklar), (
         f"close() bloklayan waitpid çağırdı (bayraklar={bayraklar})")
-    assert surec._pid is None
+    assert transport._pid is None
