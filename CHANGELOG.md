@@ -1,5 +1,27 @@
 # Değişiklik Günlüğü
 
+## v0.3.0 — 10 Eyl 2026
+
+### Eklendi
+- **Yapılandırılabilir kısayollar.** Ayar dosyasına `[shortcuts]` bölümü
+  geldi: 10 eylemin tuşu buradan değiştirilebiliyor ve `:reload` ile
+  uygulama kapatılmadan uygulanıyor. Panel eylemleri `terminal_focus`,
+  `tab_new`, `tab_close`, `tab_next`, `tab_prev`; NORMAL mod eylemleri
+  `insert_mode`, `command_line`, `search_next`, `search_prev`,
+  `clear_search`.
+- İki grubun kuralları bilinçli olarak farklı: panel kısayolları her modda
+  ve mod dağıtımından ÖNCE okunduğu için `ctrl`, `alt` ya da `meta`
+  içermek ZORUNDA (yoksa o harf INSERT modunda yazılamaz hale gelirdi),
+  NORMAL mod kısayolları ise tek karakter ya da `escape` ve hiçbir
+  değiştirici öneki almaz — büyük/küçük harf ayrımı korunur (`n` ≠ `N`).
+- İki eylem aynı tuşa düşerse önce tanımlı olan kazanır ve kaybeden için
+  açılışta bir uyarı basılır. Geçersiz bir bağlama yalnız o satırı
+  varsayılanına düşürür, uygulamayı kırmaz — `[colors]` ile aynı davranış.
+
+### Değişti
+- Karşılama sayfasındaki kısayol ipuçları artık sabit metin değil, tuş
+  haritasından üretiliyor: kendi tuşunu atadığında ipucu da onu gösterir.
+
 ## v0.2.0 — 04 Eyl 2026
 
 ### Eklendi
