@@ -52,11 +52,19 @@ jobs:
       - name: Testler
         env:
           QT_QPA_PLATFORM: offscreen
+          # Çıktı canlı aksın: '>' ile dosyaya yönlendirilen bir koşu ASILI
+          # kalırsa GitHub'ın canlı logu bomboş olur ve hangi testte
+          # kilitlendiği hiç öğrenilemez (macOS'ta tam bu oldu: 6 saatlik
+          # sınıra kadar sıfır bilgi).
+          PYTHONUNBUFFERED: "1"
         run: |
           set +e
-          python -m pytest -q --tb=short -rf > pytest-cikti.txt 2>&1
-          KOD=$?
-          cat pytest-cikti.txt
+          # faulthandler_timeout: tek bir test 120 saniyeyi aşarsa pytest TÜM
+          # iş parçacıklarının yığın izini basıp süreci sonlandırır. Asılı
+          # kalan bir koşuyu 6 saat beklemek yerine 2 dakikada, üstelik
+          # nerede kilitlendiğini söyleyerek kırar.
+          python -m pytest -q --tb=short -rf -o faulthandler_timeout=120 2>&1 | tee pytest-cikti.txt
+          KOD=${PIPESTATUS[0]}
           if [ $KOD -ne 0 ]; then
             OZET=$(grep -E "^(FAILED|ERROR)" pytest-cikti.txt | head -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
             echo "::error title=pytest kırıldı (${{ matrix.os }})::${OZET}"
