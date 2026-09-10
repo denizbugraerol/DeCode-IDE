@@ -1,90 +1,22 @@
-""" PTY üzerinde komut çalıştırma: argv, cwd ve çıkış kodu.
+""" PosixTransport.close()'un iç davranışı: WNOHANG-only reap, süresiz
+waitpid asla çağrılmaz.
 
-Gerçek süreç başlatılır (pty.fork), ama yalnız /bin altındaki minik
-araçlarla — PlatformIO kurulu olması gerekmez. """
+Argv/cwd/çıkış kodu gibi TerminalProcess sözleşmesinin geri kalanı artık
+tests/test_pty_transport.py'de, AKTİF transport'a karşı (POSIX'te
+PosixTransport, Windows'ta WindowsTransport) sınanıyor -- burada kalan tek
+test PosixTransport'un iç durumuna (fake pid, monkeypatch'lenmiş os.waitpid)
+bakıyor, bu yüzden POSIX'e özel ve Windows'ta import bile edilemez. """
 import os
 import sys
 
 import pytest
 
-from core.terminal_process import TerminalProcess
-from tests.platform_commands import echo_argv, exit_argv, missing_argv, pwd_argv
-
-pytestmark_posix = pytest.mark.skipif(
+POSIX_ONLY = pytest.mark.skipif(
     sys.platform == "win32",
     reason="PosixTransport'un iç davranışı; Windows'ta modül import edilemez")
 
 
-def _calistir(bekle, argv, cwd=None, cols=200):
-    surec = TerminalProcess(rows=6, cols=cols, argv=argv, cwd=cwd)
-    kodlar = []
-    surec.exited.connect(kodlar.append)
-    surec.start()
-    bekle(lambda: bool(kodlar))
-    return surec, kodlar
-
-
-def test_argv_ile_komut_calisir_ve_ciktisi_ekranda(qapp, bekle):
-    surec, kodlar = _calistir(bekle, echo_argv("merhaba"))
-    try:
-        assert kodlar == [0]
-        assert "merhaba" in "".join(surec.screen.display)
-    finally:
-        surec.close()
-
-
-def test_basarisiz_komutun_cikis_kodu(qapp, bekle):
-    # Komutun kendisi platforma göre seçiliyor; gerekçe için bkz.
-    # tests/platform_commands.py.
-    surec, kodlar = _calistir(bekle, exit_argv(1))
-    try:
-        assert kodlar == [1]
-        assert surec.exit_code == 1
-    finally:
-        surec.close()
-
-
-def test_olmayan_komut_127_dondurur(qapp, bekle):
-    """ exec başarısız olunca child 127 ile çıkar (kabuk geleneği:
-    'command not found'). Sekme başlığında '✗ (127)' olarak görünür. """
-    surec, kodlar = _calistir(bekle, missing_argv())
-    try:
-        assert kodlar == [127]
-    finally:
-        surec.close()
-
-
-def test_cwd_uygulanir(qapp, bekle, tmp_path):
-    hedef = os.path.realpath(str(tmp_path))
-    surec, _kodlar = _calistir(bekle, pwd_argv(), cwd=hedef)
-    try:
-        assert os.path.basename(hedef) in "".join(surec.screen.display)
-    finally:
-        surec.close()
-
-
-def test_argv_verilmezse_shell_baslar(qapp):
-    """ Varsayılan davranış (':term') değişmedi: argv yoksa login shell. """
-    surec = TerminalProcess(rows=6, cols=40)
-    surec.start()
-    try:
-        assert surec.is_running()
-    finally:
-        surec.close()
-
-
-def test_baslamamis_surecte_olcu_saklanir(qapp):
-    """ PTY boyutu start() sırasında kuruluyor; 'önce ölç, sonra başlat'
-    sırası çalışsın diye resize() koşmayan süreçte de rows/cols'u güncellemeli
-    (yoksa komut sekmesi 80 sütunla başlar ve çıktı yanlış sarmalanır). """
-    # argv hiç çalıştırılmıyor (süreç başlatılmıyor), ama macOS'ta var
-    # olmayan bir yolu örnek bırakmayalım -- kopyalayan yanılır.
-    surec = TerminalProcess(rows=6, cols=40, argv=exit_argv(0))
-    surec.resize(9, 120)
-    assert (surec.rows, surec.cols) == (9, 120)
-
-
-@pytestmark_posix
+@POSIX_ONLY
 def test_close_toplanamayan_cocukta_asili_kalmaz(qapp, monkeypatch):
     """ close() hiçbir koşulda BLOKLAYAN waitpid çağırmamalı.
 

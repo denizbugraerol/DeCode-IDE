@@ -3,15 +3,26 @@
 DİKKAT: bunlar AKTİF transport'a karşı koşar -- Linux/macOS'ta
 PosixTransport, Windows runner'ında WindowsTransport. Yani tek dosya iki
 uygulamayı da sınıyor ve sözleşme ihlali hangi platformda olursa olsun
-burada yakalanıyor. Bu yüzden skipif YOK.
+burada yakalanıyor. Bu yüzden skipif YOK -- POSIX'e özel iki test bunun
+istisnası, aşağıda ayrıca işaretli (bkz. POSIX_ONLY).
 
 Sözleşme TerminalProcess üzerinden sınanıyor, transport sınıfı doğrudan
 kurulmuyor: dışarıya verilen davranış bu ve iki katmanın birlikte doğru
 çalışması asıl mesele. """
 import os
+import sys
+import threading
+import time
+
+import pytest
 
 from core.terminal_process import TerminalProcess
 from tests.platform_commands import echo_argv, exit_argv, missing_argv, pwd_argv
+
+POSIX_ONLY = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="PosixTransport'un iç durumuna (master fd) bakıyor; Windows'ta "
+           "modül import edilemez")
 
 
 def _calistir(bekle, argv, cwd=None, cols=200):
@@ -42,7 +53,7 @@ def test_sozlesme_turkce_karakter_bozulmuyor(qapp, bekle):
         assert kodlar == [0]
         ekran = "".join(surec.screen.display)
         assert "ığüşöçİĞÜŞÖÇ" in ekran
-        assert "�" not in ekran, "UTF-8 çözümü bozuldu (replacement char)"
+        assert "\ufffd" not in ekran, "UTF-8 çözümü bozuldu (replacement char)"
     finally:
         surec.close()
 
@@ -76,11 +87,20 @@ def test_sozlesme_cwd_uygulanir(qapp, bekle, tmp_path):
 
 
 def test_sozlesme_close_donuyor_ve_is_running_dusuyor(qapp):
+    """ Güvence 2: close() ana iş parçacığında SÜRESİZ bloklanmaz. Süre
+    sınırı olmadan bu test yalnız "close() sonunda is_running() düşer" der;
+    close() gerçekten asılırsa test FAIL etmez, ASILIR. Üst sınır (5 sn) bu
+    riski gerçek bir başarısızlığa çevirir. """
     surec = TerminalProcess(rows=6, cols=40)
     surec.start()
     assert surec.is_running()
+
+    baslangic = time.monotonic()
     surec.close()
+    sure = time.monotonic() - baslangic
+
     assert not surec.is_running()
+    assert sure < 5.0, f"close() {sure:.2f}s sürdü -- süresiz bloklanma riski"
 
 
 def test_sozlesme_close_sonrasi_gec_veri_sinyal_yaymiyor(qapp, bekle):
@@ -109,5 +129,72 @@ def test_sozlesme_set_size_kosarken_ve_kosmazken(qapp):
         surec.resize(10, 100)
         assert (surec.rows, surec.cols) == (10, 100)
         assert surec.screen.columns == 100
+    finally:
+        surec.close()
+
+
+def test_sozlesme_resize_transport_set_size_cagirir(qapp):
+    """ Yukarıdaki test yalnız TerminalProcess.rows/cols ve screen.columns'u
+    ölçüyor -- ikisi de dikişin ÜSTÜNDE, transport'a hiç uğramadan
+    kurulabilir. set_size'ı no-op yapan ya da rows/cols'u ters geçiren bir
+    transport önceki testten geçer. Bu test dikişin KENDİSİNİ ölçüyor:
+    resize()'ın transport.set_size'a doğru argümanlarla, doğru sırada
+    uğradığını doğruluyor. """
+    surec = TerminalProcess(rows=6, cols=40)
+    surec.start()
+    try:
+        cagrilar = []
+        gercek_set_size = surec._transport.set_size
+
+        def casus(rows, cols):
+            cagrilar.append((rows, cols))
+            return gercek_set_size(rows, cols)
+
+        surec._transport.set_size = casus
+        surec.resize(10, 100)
+
+        assert cagrilar == [(10, 100)]
+    finally:
+        surec.close()
+
+
+@POSIX_ONLY
+def test_sozlesme_set_size_gercek_pty_geometrisini_uygular(qapp):
+    """ Yukarıdaki casus testi yalnız "transport.set_size çağrıldı mı"nı
+    ölçüyor, transport'un o çağrıyı gerçekten çekirdeğe doğru uyguladığını
+    değil. Burada master fd'den TIOCGWINSZ ile geri okuyarak PTY'nin GERÇEK
+    geometrisini doğruluyoruz -- 3. task'ın belgelenmiş tuzağı (satır/sütun
+    sırasının bir katmanda ters geçmesi) tam burada yakalanır. Windows'ta
+    gerçek geometri doğrulaması elle doğrulama listesine bırakıldı. """
+    import fcntl
+    import struct
+    import termios
+
+    surec = TerminalProcess(rows=6, cols=40, argv=exit_argv(0))
+    surec.start()
+    try:
+        surec.resize(10, 100)
+        paket = fcntl.ioctl(surec._transport._master_fd, termios.TIOCGWINSZ,
+                             struct.pack("HHHH", 0, 0, 0, 0))
+        satir, sutun, _xpiksel, _ypiksel = struct.unpack("HHHH", paket)
+        assert (satir, sutun) == (10, 100)
+    finally:
+        surec.close()
+
+
+def test_sozlesme_callback_ana_ip_parciginda_calisir(qapp, bekle):
+    """ Güvence 1: on_data/on_eof (ve dolayısıyla output_ready) HER ZAMAN ana
+    iş parçacığında tetiklenir -- pyte.Screen ve TerminalPanel bu güvenceye
+    dayanarak tek iş parçacıklı kalıyor. Bugün POSIX'te bedava doğru
+    (QSocketNotifier zaten ana döngüde); asıl değeri Windows'ta reader
+    thread geldiğinde (3. task) ortaya çıkacak. """
+    ana_iplikte = []
+    surec = TerminalProcess(rows=6, cols=40, argv=echo_argv("bir"))
+    surec.output_ready.connect(
+        lambda: ana_iplikte.append(threading.current_thread() is threading.main_thread()))
+    surec.start()
+    try:
+        bekle(lambda: bool(ana_iplikte))
+        assert ana_iplikte and all(ana_iplikte)
     finally:
         surec.close()

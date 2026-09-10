@@ -4,6 +4,7 @@ core/terminal_process.py'nin platformdan bağımsız gövdesi import anında bu
 modülü ya da (Windows'ta) core/pty_windows.py'yi seçer; ikisi aynı sözleşmeyi
 sunar:
 
+    __init__(parent=None)
     spawn(argv, cwd, env, rows, cols, on_data, on_eof)
     write(data: bytes)      set_size(rows, cols)
     is_alive() -> bool      exit_code() -> int | None
@@ -76,7 +77,7 @@ class PosixTransport:
         # Not: TIOCSWINSZ çekirdek tarafından ön plandaki process group'a
         # otomatik SIGWINCH gönderir; elle sinyal yollamaya gerek yok.
 
-    def write(self, data):
+    def write(self, data: bytes):
         if self._master_fd is None:
             return
         try:
@@ -111,6 +112,7 @@ class PosixTransport:
             # kaçırabiliyor. EOF geldiyse çocuk zaten ölmek üzere olduğundan
             # bloklayan bekleme pratikte anında dönüyor.
             _pid, status = os.waitpid(self._pid, 0)
+            # Sinyalle ölen süreçte (ör. Ctrl+C -> SIGINT) negatif değer döner.
             self._exit_code = os.waitstatus_to_exitcode(status)
         except (ChildProcessError, OSError):
             self._exit_code = -1
