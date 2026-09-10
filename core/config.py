@@ -25,6 +25,9 @@ DEFAULTS = {
     "terminal": {
         "rows": 9,
     },
+    # Eylem adı -> tuş dizesi. Boş = varsayılan tuş haritası. Geçerli eylem
+    # adlarını ve tuşları core/keymap.py bilir (bkz. _validated_shortcuts).
+    "shortcuts": {},
     # ui/theme.DEFAULT_PALETTE üzerine bindirilecek tokenlar; boş = varsayılan tema
     "colors": {},
 }
@@ -51,6 +54,23 @@ line_numbers = true
 
 [terminal]
 rows = 9               # panelin yüksekliği (satır)
+
+[shortcuts]
+# Kısayolları buradan değiştirebilirsin. İki kural var:
+#   - Panel kısayolları (her modda çalışır) ctrl, alt ya da meta İÇERMELİ;
+#     yoksa o harf INSERT modunda yazılamaz hale gelirdi.
+#   - NORMAL mod kısayolları tek karakter ya da "escape"; büyük/küçük harf
+#     ayrımı korunur ("n" ile "N" farklı komut).
+# terminal_focus = "alt+shift+t"
+# tab_new        = "alt+shift+n"
+# tab_close      = "alt+shift+w"
+# tab_next       = "alt+shift+right"
+# tab_prev       = "alt+shift+left"
+# insert_mode    = "i"
+# command_line   = ":"
+# search_next    = "n"
+# search_prev    = "N"
+# clear_search   = "escape"
 
 [colors]
 # Tokyo Night. Yalnız değiştirmek istediğin tokeni yaz.
@@ -139,6 +159,11 @@ def _merge_and_validate(raw):
             warnings.append(f"[{section}] bir tablo olmalı; yok sayıldı.")
             continue
 
+        if section == "shortcuts":
+            settings["shortcuts"], shortcut_warnings = _validated_shortcuts(values)
+            warnings.extend(shortcut_warnings)
+            continue
+
         if section == "colors":
             settings["colors"], color_warnings = _validated_colors(values)
             warnings.extend(color_warnings)
@@ -196,3 +221,18 @@ def _validated_colors(values):
         else:
             warnings.append(f"colors.{name} '#rrggbb' biçiminde olmalı; yok sayıldı.")
     return colors, warnings
+
+
+def _validated_shortcuts(values):
+    """ Yalnız BİÇİM denetlenir: değer boş olmayan bir dize olmalı. Eylem
+    adının ve tuş dizesinin geçerliliğine core/keymap.build bakar — [colors]
+    ile birebir aynı ayrım: hangi eylemlerin var olduğu tuş haritasının
+    bilgisi, ayar dosyasının değil. """
+    shortcuts = {}
+    warnings = []
+    for name, value in values.items():
+        if isinstance(value, str) and value.strip():
+            shortcuts[name] = value.strip()
+        else:
+            warnings.append(f"shortcuts.{name} boş olmayan bir metin olmalı; yok sayıldı.")
+    return shortcuts, warnings

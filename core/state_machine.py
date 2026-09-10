@@ -54,20 +54,20 @@ class StateMachine:
 
     # --- NORMAL MOD ---
 
-    def handle_normal_key(self, event):
-        """ NORMAL moddaki çıplak tuşlar: 'i' Insert moduna, ':' gerçek komut
-        satırına, 'n'/'N' son aramanın sonraki/önceki eşleşmesine gider.
+    def handle_normal_action(self, action):
+        """ NORMAL moddaki bağlanmış eylemler. Hangi TUŞUN hangi eyleme
+        karşılık geldiği artık burada değil, ayar dosyasından üretilen tuş
+        haritasında (bkz. core/keymap.py); burası yalnız eylemi uygular.
 
-        Büyük/küçük harf ayrımı korunur ('N' ile 'n' farklı komut); bu yüzden
-        event.text() küçük harfe indirilmiyor. """
-        text = event.text()
-        if text == "i":
+        'clear_search' burada yok: arama vurgusu editörün kendi durumu, onu
+        ModalEditor doğrudan ele alıyor. """
+        if action == "insert_mode":
             self._enter_insert_mode()
-        elif text == ":":
+        elif action == "command_line":
             self.start_command_line()
-        elif text == "n":
+        elif action == "search_next":
             self.editor.search_next()
-        elif text == "N":
+        elif action == "search_prev":
             self.editor.search_next(backward=True)
 
     # --- COMMAND MOD (gerçek ':' komut satırı) ---

@@ -5,6 +5,8 @@ from ui import theme
 from ui.components.syntax_highlighter import CppHighlighter, PythonHighlighter
 from core.search import find_all, find_next, replace_all
 from core.state_machine import StateMachine
+from core import keymap
+from ui import keys
 
 
 class LineNumberArea(QWidget):
@@ -64,6 +66,10 @@ class ModalEditor(QPlainTextEdit):
         self.highlighter = CppHighlighter(self.document())
         #state_machine yolla
         self.state_machine = StateMachine(self)
+
+        # Ayar dosyasından gelen tuş haritası (bkz. apply_keymap). Varsayılanla
+        # başlıyoruz: bu widget IDEWindow.apply_settings'ten ÖNCE kuruluyor.
+        self._keymap = keymap.defaults()
 
         # Ayar dosyasından gelen editör davranışı (bkz. apply_settings).
         self.tab_width = 4
@@ -126,28 +132,36 @@ class ModalEditor(QPlainTextEdit):
         self.highlighter.rebuild()
         self._highlight_matches()
 
-    # Terminal panelindekiyle aynı aile: Alt+Shift tabanlı sekme/odak kısayolları
-    _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+    def apply_keymap(self, new_keymap):
+        """ Ayar dosyasındaki [shortcuts] bölümünden üretilen harita. Açılışta
+        ve ':reload'da EditorTabs üzerinden çağrılır. """
+        self._keymap = new_keymap
+
+    def _panel_signal(self, action):
+        """ Panel eylemi -> bu widget'ın sinyali. TerminalView ve WelcomePage
+        aynı eylemleri kendi sinyal adlarına eşler; komut böylece odağın
+        bulunduğu yere uygulanır. """
+        return {
+            "terminal_focus": self.terminal_focus_requested,
+            "tab_new": self.tab_new_requested,
+            "tab_close": self.tab_close_requested,
+            "tab_next": self.tab_next_requested,
+            "tab_prev": self.tab_prev_requested,
+        }[action]
 
     def keyPressEvent(self, event):
         """
         Klavyeden basılan her tuş buraya düşer.
         Tuşları ekrana basmadan önce mod kontrolünden geçiririz.
         """
-        # Alt+Shift ailesi her modda çalışır; bu yüzden mod dağıtımından önce
-        # bakılır. Terminaldeki (TerminalView) eşleme ile birebir aynı tuşlar:
-        # komut, odağın bulunduğu yere — burada editör sekmelerine — uygulanır.
-        if event.modifiers() == self._PANEL_MODIFIERS:
-            signal = {
-                Qt.Key.Key_T: self.terminal_focus_requested,
-                Qt.Key.Key_N: self.tab_new_requested,
-                Qt.Key.Key_W: self.tab_close_requested,
-                Qt.Key.Key_Right: self.tab_next_requested,
-                Qt.Key.Key_Left: self.tab_prev_requested,
-            }.get(event.key())
-            if signal is not None:
-                signal.emit()
-                return
+        # Panel ailesi her modda çalışır; bu yüzden mod dağıtımından önce
+        # bakılır. Terminaldeki (TerminalView) ve karşılama sayfasındaki
+        # eşleme ile aynı eylemler: komut, odağın bulunduğu yere — burada
+        # editör sekmelerine — uygulanır.
+        action = keys.match(event, self._keymap, "panel")
+        if action is not None:
+            self._panel_signal(action).emit()
+            return
 
         if self.current_mode == "NORMAL":
             self.handle_normal_mode(event)
@@ -166,17 +180,19 @@ class ModalEditor(QPlainTextEdit):
 
             if event.key() in nav_keys or event.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 super().keyPressEvent(event)
+                return
 
-            # Escape, text() olarak boş değil ('\x1b') döndüğü için aşağıdaki
-            # 'yazılabilir tuş' dalından ÖNCE ele alınmalı.
-            elif event.key() == Qt.Key.Key_Escape:
+            # Escape tuzağı burada kendiliğinden çözülüyor: Escape artık
+            # event.text() ('\x1b') üzerinden değil, 'escape' tuş ADI
+            # üzerinden eşleşiyor (bkz. ui/keys.normal_binding).
+            action = keys.match(event, self._keymap, "normal")
+            if action == "clear_search":
                 self.clear_search()
-
-            # 'i' ve ':' dahil, yazılabilir tuşları State Machine'e yönlendiriyoruz
-            # (':' gibi Shift gerektiren tuşlar için Shift de kabul edilir)
-            elif event.text() and event.modifiers() in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ShiftModifier):
-                self.state_machine.handle_normal_key(event)
-
+            elif action is not None:
+                self.state_machine.handle_normal_action(action)
+            elif event.text() and event.modifiers() in (Qt.KeyboardModifier.NoModifier,
+                                                        Qt.KeyboardModifier.ShiftModifier):
+                pass   # yazılabilir ama bağlanmamış tuş: NORMAL modda yutulur
             else:
                 event.ignore()
 

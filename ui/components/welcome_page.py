@@ -12,6 +12,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from core.state_machine import StateMachine
+from core import keymap
+from ui import keys
 
 
 class WelcomePage(QWidget):
@@ -42,16 +44,16 @@ class WelcomePage(QWidget):
     available_commands = ("b", "cd", "openfile", "pio", "qa", "reload",
                           "tabnew", "term", "termnew", "ts")
 
-    # Terminal ve editördekiyle aynı aile
-    _PANEL_MODIFIERS = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
-
+    # (tür, değer, açıklama). Tür 'command' ise değer olduğu gibi gösterilir;
+    # 'action' ise geçerli tuş haritasından üretilir — kısayolunu değiştiren
+    # kullanıcıya yalan söylemesin (bkz. apply_keymap).
     HINTS = [
-        (":ts", "dosya bul"),
-        (":openfile <yol>", "dosya aç"),
-        (":tabnew", "yeni boş sekme"),
-        ("Alt+Shift+N", "yeni boş sekme"),
-        ("Alt+Shift+T", "terminale geç"),
-        (":qa", "çıkış"),
+        ("command", ":ts", "dosya bul"),
+        ("command", ":openfile <yol>", "dosya aç"),
+        ("command", ":tabnew", "yeni boş sekme"),
+        ("action", "tab_new", "yeni boş sekme"),
+        ("action", "terminal_focus", "terminale geç"),
+        ("command", ":qa", "çıkış"),
     ]
 
     def __init__(self, parent=None):
@@ -71,9 +73,11 @@ class WelcomePage(QWidget):
         subtitle.setObjectName("welcomeSubtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        hints = QLabel("\n".join(f"{key:<16}{description}" for key, description in self.HINTS))
-        hints.setObjectName("welcomeHints")
-        hints.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._keymap = keymap.defaults()
+        self._hints_label = QLabel()
+        self._hints_label.setObjectName("welcomeHints")
+        self._hints_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._refresh_hints()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -81,7 +85,7 @@ class WelcomePage(QWidget):
         layout.addWidget(title)
         layout.addWidget(subtitle)
         layout.addSpacing(24)
-        layout.addWidget(hints)
+        layout.addWidget(self._hints_label)
         layout.addStretch(3)
 
     # --- Klavye ---
@@ -91,26 +95,44 @@ class WelcomePage(QWidget):
         (CommandPalette/TerminalView'daki aynı gerekçe). """
         return False
 
+    def apply_keymap(self, new_keymap):
+        """ Haritayı saklar ve ipucu metnini yeniden kurar; ':reload' sonrası
+        da doğru kalsın. """
+        self._keymap = new_keymap
+        self._refresh_hints()
+
+    def _refresh_hints(self):
+        self._hints_label.setText("\n".join(
+            f"{self._hint_key(kind, value):<16}{description}"
+            for kind, value, description in self.HINTS))
+
+    def _hint_key(self, kind, value):
+        return value if kind == "command" else self._keymap.label(value)
+
+    def _panel_signal(self, action):
+        """ ModalEditor ile aynı eylemler, aynı sinyal adları — IDEWindow
+        ikisini de tek tablodan bağlıyor. """
+        return {
+            "terminal_focus": self.terminal_focus_requested,
+            "tab_new": self.tab_new_requested,
+            "tab_close": self.tab_close_requested,
+            "tab_next": self.tab_next_requested,
+            "tab_prev": self.tab_prev_requested,
+        }[action]
+
     def keyPressEvent(self, event):
-        if event.modifiers() == self._PANEL_MODIFIERS:
-            signal = {
-                Qt.Key.Key_T: self.terminal_focus_requested,
-                Qt.Key.Key_N: self.tab_new_requested,
-                Qt.Key.Key_W: self.tab_close_requested,
-                Qt.Key.Key_Right: self.tab_next_requested,
-                Qt.Key.Key_Left: self.tab_prev_requested,
-            }.get(event.key())
-            if signal is not None:
-                signal.emit()
-                return
+        action = keys.match(event, self._keymap, "panel")
+        if action is not None:
+            self._panel_signal(action).emit()
+            return
 
         if self.current_mode == "COMMAND":
             self.state_machine.handle_command_key(event)
-        elif event.text() == ":":
+        elif keys.match(event, self._keymap, "normal") == "command_line":
             self.state_machine.start_command_line()
         else:
-            # 'i', 'n', 'N' gibi tampon gerektiren çıplak tuşların burada
-            # karşılığı yok.
+            # 'insert_mode', 'search_next' gibi tampon gerektiren eylemlerin
+            # burada karşılığı yok.
             event.ignore()
 
     # --- StateMachine'in editörde beklediği işlemler ---

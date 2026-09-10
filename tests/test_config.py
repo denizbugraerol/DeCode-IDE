@@ -115,3 +115,40 @@ def test_ensure_exists_yoksa_yazar_varsa_dokunmaz(tmp_path):
     config.ensure_exists(yol)
     with open(yol, encoding="utf-8") as dosya:
         assert "# kullanıcı notu" in dosya.read()
+
+
+# --- [shortcuts] ---
+
+def test_shortcuts_varsayilanda_bos():
+    assert config.DEFAULTS["shortcuts"] == {}
+
+
+def test_shortcuts_degeri_oldugu_gibi_gecer():
+    """ config yalnız BİÇİME bakar: eylem adının ve tuşun geçerliliği
+    core/keymap.py'nin işi ([colors] ile aynı ayrım). """
+    ayarlar, uyarilar = config.parse('[shortcuts]\ntab_new = "ctrl+t"\n')
+    assert ayarlar["shortcuts"] == {"tab_new": "ctrl+t"}
+    assert uyarilar == []
+
+
+def test_shortcuts_bilinmeyen_eylem_adi_config_seviyesinde_gecer():
+    """ 'tab_neww' burada elenmez; uyarıyı keymap.build üretir. """
+    ayarlar, uyarilar = config.parse('[shortcuts]\ntab_neww = "ctrl+t"\n')
+    assert ayarlar["shortcuts"] == {"tab_neww": "ctrl+t"}
+    assert uyarilar == []
+
+
+def test_shortcuts_metin_olmayan_deger_elenir():
+    ayarlar, uyarilar = config.parse("[shortcuts]\ntab_new = 5\n")
+    assert ayarlar["shortcuts"] == {}
+    assert any("tab_new" in u for u in uyarilar)
+
+
+def test_shortcuts_bos_deger_elenir():
+    ayarlar, uyarilar = config.parse('[shortcuts]\ntab_new = "   "\n')
+    assert ayarlar["shortcuts"] == {}
+    assert any("tab_new" in u for u in uyarilar)
+
+
+def test_sablonda_shortcuts_bolumu_var():
+    assert "[shortcuts]" in config.TEMPLATE
