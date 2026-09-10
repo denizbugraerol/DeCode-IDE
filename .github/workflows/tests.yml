@@ -63,7 +63,11 @@ jobs:
           # iş parçacıklarının yığın izini basıp süreci sonlandırır. Asılı
           # kalan bir koşuyu 6 saat beklemek yerine 2 dakikada, üstelik
           # nerede kilitlendiğini söyleyerek kırar.
-          python -m pytest -q --tb=short -rf -o faulthandler_timeout=120 2>&1 | tee pytest-cikti.txt
+          # '-q' DEĞİL: sıkışık kip her testi bir nokta olarak basar ve satır
+          # 72 karakteri doldurana kadar GitHub'ın loguna hiçbir şey düşmez.
+          # Asılı kalan koşuda bu, kilitlenen testi 72'lik bir pencereye kadar
+          # belirsiz bırakıyordu. '-v' her testi kendi satırına yazar.
+          python -m pytest -v --tb=short -rf -o faulthandler_timeout=60 2>&1 | tee pytest-cikti.txt
           KOD=${PIPESTATUS[0]}
           if [ $KOD -ne 0 ]; then
             OZET=$(grep -E "^(FAILED|ERROR)" pytest-cikti.txt | head -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
