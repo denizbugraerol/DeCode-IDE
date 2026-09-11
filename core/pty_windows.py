@@ -9,10 +9,9 @@ taşınıyor -- 1. güvence böyle sağlanıyor. Desen depoda zaten var:
 core/file_index.py, FileIndexWorker. """
 import os
 import shutil
-import subprocess
 import time
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 
 from winpty import PtyProcess
 
@@ -51,9 +50,16 @@ class _ReaderThread(QThread):
             try:
                 parca = self._pty.read(65536)
             except Exception:
-                break          # EOF ya da kapatılmış pty; ikisi de normal çıkış
+                break          # GERÇEK EOF (EOFError) ya da kapatılmış pty
             if not parca:
-                break
+                # DİKKAT: bu EOF DEĞİL. pywinpty'nin okuma thread'i veri
+                # yokken hattan b'0011Ignore' sentinel'i gönderiyor ve
+                # PtyProcess.read bunu '' olarak döndürüyor -- gerçek EOF'un
+                # TEK göstergesi yukarıdaki except (EOFError). Burada break
+                # yaparsak kabuk hâlâ koşarken sekme "bitti" işaretlenir.
+                # read() varsayılan olarak bloklu olduğu için continue sıkı
+                # döngüye girmez.
+                continue
             if not self._durduruldu:
                 self.data_received.emit(_to_bytes(parca))
         self.eof.emit()
@@ -93,13 +99,18 @@ class WindowsTransport(QObject):
         self._on_data, self._on_eof = on_data, on_eof
         self._exit_code = None
 
-        # ConPTY argv listesi değil tek bir KOMUT SATIRI dizesi alıyor.
-        # list2cmdline, boşluklu yolları ('C:\Program Files\...') MS C çalışma
-        # zamanı kurallarına göre tırnaklayan tek doğru yol; elle ' '.join
-        # sessizce bozar.
-        komut = subprocess.list2cmdline(argv)
+        # argv listesi DOĞRUDAN geçiliyor, önceden list2cmdline ile tek
+        # komut satırına çevrilmiyor. PtyProcess.spawn str aldığında
+        # shlex.split(argv, posix=False) uyguluyor ve posix=False tırnakları
+        # TOKEN'IN İÇİNDE bırakıyor -- 'C:\Program Files\...' gibi boşluklu
+        # bir yolu list2cmdline ile tırnaklayıp geçirirsek shlex.split geri
+        # '"C:\Program Files\..."' (tırnaklarıyla) üretir, shutil.which bu
+        # adı bulamaz ve spawn FileNotFoundError ile 127'ye düşer -- yani
+        # varsayılan kurulumdaki PowerShell 7 ':term'i hiç açmazdı. pywinpty
+        # liste aldığında argv[1:] üzerinde list2cmdline'ı zaten kendisi
+        # yapıyor; bizim önceden yapmamız çifte kodlamaydı.
         try:
-            self._pty = PtyProcess.spawn(komut, dimensions=(rows, cols),
+            self._pty = PtyProcess.spawn(argv, dimensions=(rows, cols),
                                          cwd=cwd, env=env)
         except Exception:
             # POSIX'te exec başarısızlığı child'da os._exit(127) oluyor;
@@ -110,13 +121,19 @@ class WindowsTransport(QObject):
             return
 
         self._reader = _ReaderThread(self._pty, parent=self)
-        # Kuyruklu bağlantı: thread'den gelen veri ANA iş parçacığında
-        # işlensin (sözleşmenin 1. güvencesi). QThread'in kendisi bu nesnenin
-        # thread'inde yaşadığı için Qt bağlantıyı otomatik olarak kuyruklu
-        # seçiyor; yine de açıkça yazmıyoruz ki varsayılan davranış değişirse
-        # sessizce bozulmasın -- bkz. testler.
-        self._reader.data_received.connect(self._on_reader_data)
-        self._reader.eof.connect(self._on_reader_eof)
+        # Kuyruklu bağlantı AÇIKÇA yazılıyor (sözleşmenin 1. güvencesi).
+        # Qt bağlantı tipini "QThread nesnesi kimin çocuğu" gibi bir şeye
+        # göre değil, sinyalin EMIT edildiği thread ile alıcının thread
+        # affinity'sine göre seçer: data_received/eof burada _ReaderThread.
+        # run() içinden (worker thread) emit ediliyor, alıcı (bu
+        # WindowsTransport) ana thread'de yaşıyor -- AutoConnection zaten
+        # bunu kuyruklu seçerdi. Açıkça QueuedConnection yazmak sonucu
+        # değiştirmiyor, niyeti sabitliyor: biri connect'i AutoConnection
+        # varsayımıyla değil bilerek kuyruklu istediğimizi görsün.
+        self._reader.data_received.connect(
+            self._on_reader_data, Qt.ConnectionType.QueuedConnection)
+        self._reader.eof.connect(
+            self._on_reader_eof, Qt.ConnectionType.QueuedConnection)
         self._reader.start()
 
     def _on_reader_data(self, data):
@@ -178,10 +195,26 @@ class WindowsTransport(QObject):
         return self._exit_code
 
     def close(self, timeout=0.5):
-        """ Üç adım, hepsi SÜRELİ -- sözleşmenin 2. güvencesi.
+        """ Dört adım, hepsi SÜRELİ -- sözleşmenin 2. güvencesi.
 
-        Sıra önemli: bağlantı ÖNCE kesiliyor ki 3. adımda bırakılan bir
-        thread silinmiş bir nesneye sinyal gönderemesin. """
+        Sıra önemli: bağlantı ÖNCE kesiliyor ki 4. adımda bırakılan bir
+        thread silinmiş bir nesneye sinyal gönderemesin.
+
+        Süre bütçesi: pywinpty'nin terminate(force=False) çağrısı içinde
+        kendi delayafterterminate'i (~0.1s) kadar uyuyor, terminate(force=
+        True) bir ~0.1s daha; sonra buradaki wait(timeout) en fazla
+        'timeout' kadar (varsayılan 0.5s) daha bekliyor -- toplamda ana iş
+        parçacığında ~0.7-0.8s. _on_reader_eof'un ayrı 0.5s'lik yoklaması bu
+        süreye dahil değil (o, EOF sinyali işlenirken çalışıyor). Testteki
+        5.0s üst sınırın altında kalıyor, bolca payla. """
+        # Kuyrukta bekleyen bir data_received/eof olayı, aşağıdaki
+        # disconnect'ten SONRA bile teslim edilebilir -- kuyruklanmış bir
+        # olay disconnect ile geri çekilmez. Callback'leri burada None'a
+        # çekmek, _on_reader_data/_on_reader_eof'taki 'if self._on_data:' /
+        # 'if self._on_eof:' korumasını gerçekten devreye sokan tek şey.
+        self._on_data = None
+        self._on_eof = None
+
         if self._reader is not None:
             self._reader.durdur()
             try:
@@ -200,6 +233,17 @@ class WindowsTransport(QObject):
                     self._pty.terminate(force=True)
                 except Exception:
                     pass
+            # pywinpty her spawn'da 127.0.0.1'e bağlanan bir dinleyen soket +
+            # kabul edilmiş soket + kendi daemon thread'i açıyor; bunları
+            # YALNIZ PtyProcess.close() kapatıyor. GC'ye bırakılamaz: isalive()
+            # süreç ölünce self.closed = True yapıyor ve close() zaten
+            # 'if not self.closed' ile erken dönüyor -- yani __del__ -> close()
+            # burada no-op'a düşmüş durumda, bu satırı silmek soket/thread
+            # sızıntısı demek.
+            try:
+                self._pty.close()
+            except Exception:
+                pass
             self._pty = None
 
         if self._reader is not None:
@@ -212,5 +256,10 @@ class WindowsTransport(QObject):
                 # yok edilirken hâlâ koşan bir çocuk QThread, Qt'de süreci
                 # çökertir.
                 self._reader.setParent(None)
+                # Ekleme öncesi bitmiş olanları süpür: aksi halde liste
+                # süresiz büyür ve her kayıt bir PtyProcess'i (dolayısıyla
+                # soketlerini) canlı tutmaya devam eder.
+                _BIRAKILAN_THREADLER[:] = [
+                    t for t in _BIRAKILAN_THREADLER if t.isRunning()]
                 _BIRAKILAN_THREADLER.append(self._reader)
             self._reader = None

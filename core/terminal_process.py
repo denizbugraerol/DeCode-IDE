@@ -88,7 +88,8 @@ class _UnavailableTransport:
         pass
 
 
-_Transport = _Transport or _UnavailableTransport
+if _Transport is None:
+    _Transport = _UnavailableTransport
 
 
 class _PtyBackedScreen(pyte.Screen):

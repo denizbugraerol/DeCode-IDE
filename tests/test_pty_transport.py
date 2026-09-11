@@ -206,6 +206,15 @@ def test_terminal_destegi_yoksa_uygulama_cokmez(qapp):
     import dalından bağımsız bir sınıf. """
     from core import terminal_process as tp
 
+    # Asıl çökme yolu import dalı + seçim satırıdır (sys.platform ==
+    # "win32" ise pywinpty yok -> _Transport None kalır -> _UnavailableTransport
+    # devreye girer); bu dal hiçbir platformda (Linux'ta hiç, Windows'ta
+    # pywinpty kuruluyken) koşulmuyor. Burada en azından modülün gerçek
+    # seçimi None BIRAKMADIĞINI iddia ediyoruz -- bu makinede
+    # PosixTransport'a, pywinpty'siz Windows'ta _UnavailableTransport'a
+    # çözülür, ikisinde de None olmamalı.
+    assert tp._Transport is not None
+
     surec = tp.TerminalProcess(rows=6, cols=40, argv=["olsun"])
     surec._transport = tp._UnavailableTransport()
     kodlar = []
