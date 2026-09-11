@@ -119,6 +119,12 @@ def test_config_path_windowsta_da_xdg_onceliklidir():
 def test_config_path_linux_dali_degismedi(monkeypatch):
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", "/home/deneme")
+    # os.path.expanduser gerçek host'un os.path'i (posixpath/ntpath) neyse onu
+    # kullanır; platform_name="linux" yalnız config_path'in KENDİ dalını
+    # seçer, expanduser'ı değil. Gerçek bir Windows runner'ında ntpath.expanduser
+    # HOME'a değil USERPROFILE'a bakar -- onu da vermezsek bu test orada
+    # monkeypatch'lenmemiş gerçek USERPROFILE'ı okur ve sahte biçimde kırılır.
+    monkeypatch.setenv("USERPROFILE", "/home/deneme")
     yol = config.config_path(platform_name="linux")
     assert yol == os.path.join("/home/deneme", ".config", "decode", "config.toml")
 
