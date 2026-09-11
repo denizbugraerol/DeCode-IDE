@@ -648,7 +648,7 @@ ve testin üstüne `@pytestmark_posix` koy. `import sys` ve `import pytest` sat�
 - [ ] **Step 7: Bütün testleri çalıştır**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: `281 passed` (273 + 8 yeni sözleşme testi). Bir kırılma varsa yeniden yapılandırma davranış değiştirmiş demektir — düzelt, testi gevşetme.
+Expected: `278 passed`. Task 2 inceleme sonrası 8 sözleşme testi ekledi, `test_terminal_process.py`'den devrolmuş 6 kopyayı sildi ve güvenceleri iddia eden 3 test daha ekledi (273 + 8 - 6 + 3). Bir kırılma varsa yeniden yapılandırma davranış değiştirmiş demektir — düzelt, testi gevşetme.
 
 - [ ] **Step 8: Commit**
 
@@ -1034,7 +1034,7 @@ def test_terminal_destegi_yoksa_uygulama_cokmez(qapp):
 - [ ] **Step 5: Linux'ta hiçbir şeyin bozulmadığını doğrula**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: `282 passed` (281 + yedek transport testi). `core/pty_windows.py` Linux'ta hiç import edilmiyor (`terminal_process.py`'deki dal), yani `winpty` kurulu olmasa da testler geçmeli. Geçmiyorsa dal yanlış yazılmış demektir.
+Expected: `279 passed` (278 + yedek transport testi). `core/pty_windows.py` Linux'ta hiç import edilmiyor (`terminal_process.py`'deki dal), yani `winpty` kurulu olmasa da testler geçmeli. Geçmiyorsa dal yanlış yazılmış demektir.
 
 - [ ] **Step 6: Windows makinesinde sözleşme testlerini koştur**
 
@@ -1046,7 +1046,7 @@ py -m venv .venv-win
 .venv-win\Scripts\python -m pytest tests/test_pty_transport.py -v
 ```
 
-Expected: `tests/test_pty_transport.py`'deki 9 testin hepsi PASS. Özellikle `test_sozlesme_turkce_karakter_bozulmuyor` ve `test_sozlesme_olmayan_komut_127`.
+Expected: `tests/test_pty_transport.py`'deki 12 testin hepsi PASS. Özellikle `test_sozlesme_turkce_karakter_bozulmuyor` ve `test_sozlesme_olmayan_komut_127`.
 
 - [ ] **Step 7: Windows'ta tüm test paketini koştur**
 
@@ -1256,7 +1256,7 @@ def find_executable(platform_name=None):
 - [ ] **Step 8: Bütün testleri çalıştır**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: `287 passed` (282 + 3 config + 2 pio_cli).
+Expected: `284 passed` (279 + 3 config + 2 pio_cli).
 
 - [ ] **Step 9: Commit**
 
@@ -1547,7 +1547,7 @@ Expected: her iki dosyada da `{'run': {'shell': 'bash'}}` ve matriste Windows sa
 - [ ] **Step 6: Testleri çalıştır ve commit**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: `289 passed` (287 + Task 5'in 2 spec testi). Workflow değişikliği testleri etkilemez; bu bir regresyon kontrolü.
+Expected: `286 passed` (284 + Task 5'in 2 spec testi). Workflow değişikliği testleri etkilemez; bu bir regresyon kontrolü.
 
 ```bash
 git add .github/workflows/tests.yml .github/workflows/release.yml
@@ -1786,7 +1786,7 @@ Tabloya satır ekle:
 - [ ] **Step 7: Testleri çalıştır ve commit**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: `289 passed` (`tests/test_no_hardcoded_colors.py` dahil — belge değişiklikleri onu etkilemez).
+Expected: `286 passed` (`tests/test_no_hardcoded_colors.py` dahil — belge değişiklikleri onu etkilemez).
 
 ```bash
 git add README.md CHANGELOG.md docs/Roadmap.md CLAUDE.md docs/sprint/sprint-14.md docs/sprint/README.md
@@ -1807,6 +1807,6 @@ Bunlar plan task'ı değil; insan kararı gerektiriyor.
 
 ## Notlar
 
-- **Test sayıları** (273 → 281 → 282 → 287 → 289) yön göstericidir, sözleşme değil. Sayı tutmuyorsa hangi testin eklendiğine/kaybolduğuna bak; *düşmesi* her zaman incelenecek bir işarettir.
+- **Test sayıları** (273 → 278 → 279 → 284 → 286) yön göstericidir, sözleşme değil. Sayı tutmuyorsa hangi testin eklendiğine/kaybolduğuna bak; *düşmesi* her zaman incelenecek bir işarettir.
 - **Task 3 Linux'ta doğrulanamaz.** Adım 4 yalnız "Windows kodu Linux'u bozmadı"yı ölçer; gerçek doğrulama Adım 5–6'da, Windows makinesinde.
 - **Task 3 Adım 1 durdurucu olabilir:** ölçüm üçüncü dala (`str` + replacement char) düşerse alt seviye `winpty.PTY` API'sine inmek gerekir ve bu, Adım 3'ün kodunu değiştirir. O noktada dur ve planı güncelle.
