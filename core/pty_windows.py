@@ -63,6 +63,18 @@ class _ReaderThread(QThread):
             if not self._durduruldu:
                 self.data_received.emit(_to_bytes(parca))
         self.eof.emit()
+        # Referansı burada bırak, WindowsTransport.close()'a değil: bu thread
+        # QObject olarak WindowsTransport'un Qt çocuğu, 'self._reader = None'
+        # atamak yalnız BİZİM referansımızı düşürür, Qt'nin sahiplik
+        # ilişkisini SİLMEZ -- nesne parent'ı (WindowsTransport) yok edilene
+        # kadar yaşamaya devam eder. Thread kendi '_pty'sini bırakmazsa,
+        # WindowsTransport._pty zaten None olsa bile PtyProcess (ve
+        # soketleri) bu thread canlı kaldığı sürece GC'ye asla düşmez. Bu
+        # satır, wait() içeride başarıyla dönse de (thread zaten bitmiş
+        # demektir) ya da thread süre dolduğu için _BIRAKILAN_THREADLER'a
+        # bırakılsa da (er ya da geç buraya kendi kendine ulaşır) her iki
+        # yolda da çalışır.
+        self._pty = None
 
 
 def _to_bytes(parca):
@@ -200,11 +212,14 @@ class WindowsTransport(QObject):
         Sıra önemli: bağlantı ÖNCE kesiliyor ki 4. adımda bırakılan bir
         thread silinmiş bir nesneye sinyal gönderemesin.
 
-        Süre bütçesi: pywinpty'nin terminate(force=False) çağrısı içinde
-        kendi delayafterterminate'i (~0.1s) kadar uyuyor, terminate(force=
-        True) bir ~0.1s daha; sonra buradaki wait(timeout) en fazla
-        'timeout' kadar (varsayılan 0.5s) daha bekliyor -- toplamda ana iş
-        parçacığında ~0.7-0.8s. _on_reader_eof'un ayrı 0.5s'lik yoklaması bu
+        Süre bütçesi: pywinpty'nin terminate(force=False) çağrısı en kötü
+        durumda kendi delayafterterminate'i (~0.1s) kadar uyuyor,
+        terminate(force=True) SIGINT'i tekrarlayıp bir ~0.1s, sonra SIGTERM
+        için bir ~0.1s daha (toplam ~0.3s terminate'lerde); artık gerçekten
+        çalışan self._pty.close() kendi delayafterclose'u (~0.1s) kadar bir
+        uyku daha ekliyor; sonra buradaki wait(timeout) en fazla 'timeout'
+        kadar (varsayılan 0.5s) daha bekliyor -- toplamda ana iş
+        parçacığında ~0.8-0.9s. _on_reader_eof'un ayrı 0.5s'lik yoklaması bu
         süreye dahil değil (o, EOF sinyali işlenirken çalışıyor). Testteki
         5.0s üst sınırın altında kalıyor, bolca payla. """
         # Kuyrukta bekleyen bir data_received/eof olayı, aşağıdaki
@@ -235,12 +250,24 @@ class WindowsTransport(QObject):
                     pass
             # pywinpty her spawn'da 127.0.0.1'e bağlanan bir dinleyen soket +
             # kabul edilmiş soket + kendi daemon thread'i açıyor; bunları
-            # YALNIZ PtyProcess.close() kapatıyor. GC'ye bırakılamaz: isalive()
-            # süreç ölünce self.closed = True yapıyor ve close() zaten
-            # 'if not self.closed' ile erken dönüyor -- yani __del__ -> close()
-            # burada no-op'a düşmüş durumda, bu satırı silmek soket/thread
-            # sızıntısı demek.
+            # YALNIZ PtyProcess.close()'un GÖVDESİ (fileobj.close() +
+            # _server.close()) kapatıyor. GC'ye bırakılamaz -- ama düz
+            # 'self._pty.close()' çağrısı burada NO-OP: pywinpty'nin
+            # close()'u 'if not self.closed:' kapısıyla başlıyor, isalive()
+            # ise HER ÇAĞRILDIĞINDA self.closed = (not alive) YAZIYOR.
+            # Yukarıdaki terminate() çağrıları kendi içinde isalive()'ı
+            # birkaç kez çağırıyor (süreç ölünce closed zaten True olmuş
+            # oluyor); pywinpty'nin kendi test paketi de bunu doğruluyor
+            # (winpty/tests/test_ptyprocess.py::test_terminate: terminate()
+            # sonrası close() hiç çağrılmadan 'assert pty.closed' geçiyor).
+            # Yani bu noktaya geldiğimizde closed zaten True ve düz close()
+            # çağrısı fileobj/_server'a hiç dokunmaz. Bayrağı elle geri
+            # çekip kapıyı zorla açıyoruz -- GÜVENLİ, çünkü süreç zaten ölü:
+            # close() içindeki 'if self.isalive(): terminate(...)' dalı
+            # tekrar tetiklenmez (isalive() gerçek OS durumuna bakar, bizim
+            # bayrağımızdan etkilenmez).
             try:
+                self._pty.closed = False
                 self._pty.close()
             except Exception:
                 pass
