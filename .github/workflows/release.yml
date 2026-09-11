@@ -10,8 +10,8 @@ permissions:
 jobs:
   build:
     strategy:
-      # Bir platformun kırılması ötekinin build'ini iptal etmesin; ikisinin de
-      # sonucunu görmek istiyoruz. Release job'ı yine de ikisini birden
+      # Bir platformun kırılması ötekilerin build'ini iptal etmesin; üçünün
+      # de sonucunu görmek istiyoruz. Release job'ı yine de üçünü birden
       # bekliyor (aşağıdaki 'needs'), yani eksik bir sürüm yayınlanmaz.
       fail-fast: false
       matrix:
@@ -26,7 +26,17 @@ jobs:
           # macos-13 satırı gerekirdi; bilinçli olarak kapsam dışı.
           - os: macos-latest
             ad: macos-arm64
+          # windows-latest x86_64. Windows on ARM için ayrı bir runner
+          # gerekirdi; bilinçli olarak kapsam dışı.
+          - os: windows-latest
+            ad: windows-x86_64
     runs-on: ${{ matrix.os }}
+    # windows-latest'te 'run:' varsayılanı PowerShell'dir; aşağıdaki adımlar
+    # ise bash (set +e, PIPESTATUS, tee, awk). Git Bash Windows runner'larında
+    # kurulu, bu yüzden üç platform da aynı betikleri koşabiliyor.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -57,6 +67,11 @@ jobs:
       # Başarısızlıklar AÇIKÇA 'exit 1' ile bildiriliyor: kabuğun 'set -e'
       # davranışına güvenen bir kapı, son komut başarılı olduğunda sessizce
       # açık kalır.
+      #
+      # DİKKAT: '--version' QApplication'dan ÖNCE dönüyor, yani ConPTY'ye
+      # hiç dokunmuyor -- eksik bir winpty DLL'i bu testten görünmez geçer.
+      # O boşluk bilinçli kabul edildi; güvence tasarım dokümanındaki elle
+      # doğrulama listesinin 4. maddesinden geliyor.
       - name: Duman testi
         run: |
           BINARY=$(ls dist/DeCode-*)
@@ -79,8 +94,10 @@ jobs:
           # Adın platformu taşıdığını doğrula: .spec bunu sys.platform ve
           # platform.machine()'den türetiyor, yanlış runner'a düşersek burada
           # yakalanır.
+          # PyInstaller Windows'ta ada '.exe' ekliyor; ad kontrolü ikisini de
+          # kabul etmeli.
           case "$BINARY" in
-            *${{ matrix.ad }}) echo "ad doğru: $BINARY" ;;
+            *${{ matrix.ad }}|*${{ matrix.ad }}.exe) echo "ad doğru: $BINARY" ;;
             *) echo "::error title=Duman testi::beklenen ad '*${{ matrix.ad }}', bulunan '$BINARY'"; exit 1 ;;
           esac
 
@@ -91,9 +108,9 @@ jobs:
           if-no-files-found: error
 
   release:
-    # İkisi de başarılı olmadan Release oluşmaz: yarım bir sürüm (yalnız
-    # Linux, ya da yalnız macOS) yayınlamak, sessizce eksik bir şey dağıtmak
-    # olurdu. Bir platform kırılırsa tag durur, düzeltip yeniden etiketleriz.
+    # Üçü de başarılı olmadan Release oluşmaz: yarım bir sürüm (örneğin
+    # yalnız Linux) yayınlamak, sessizce eksik bir şey dağıtmak olurdu. Bir
+    # platform kırılırsa tag durur, düzeltip yeniden etiketleriz.
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -139,6 +156,17 @@ jobs:
 
           **macOS derlemesi otomatik testlerden geçiyor, ancak elle
           denenmedi** — geri bildirim memnuniyetle karşılanır.
+
+          ### Windows (x86_64)
+
+          `DeCode-*-windows-x86_64.exe` dosyasını indirip çalıştırın.
+
+          Binary imzasız olduğu için Windows SmartScreen ilk açılışta
+          "Windows protected your PC" uyarısı gösterir: **More info** →
+          **Run anyway**. Kod imzalama bilinçli olarak yapılmıyor.
+
+          Windows 10 sürüm 1809 ya da üstü gerekir (terminal paneli
+          ConPTY kullanıyor).
 
           Python, pip ya da bağımlılık kurulumu gerekmez.
           Değişiklikler için `CHANGELOG.md`'ye bakın.

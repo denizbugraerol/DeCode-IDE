@@ -5,13 +5,18 @@ on: [push, pull_request]
 jobs:
   pytest:
     strategy:
-      # Bir platformun kırılması ötekini iptal etmesin: macOS yeni ve
-      # doğrulanmamış, Linux ise kanıtlanmış -- ikisinin sonucunu da görmek
-      # istiyoruz.
+      # Bir platformun kırılması ötekini iptal etmesin: üçünün de sonucunu
+      # görmek istiyoruz.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    # windows-latest'te 'run:' varsayılanı PowerShell'dir; aşağıdaki adımlar
+    # ise bash (set +e, PIPESTATUS, tee, awk). Git Bash Windows runner'larında
+    # kurulu, bu yüzden üç platform da aynı betikleri koşabiliyor.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
