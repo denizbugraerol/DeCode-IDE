@@ -670,6 +670,27 @@ bloklanmaz."
 
 ### Task 3: ConPTY transport (Windows)
 
+> **DÜZELTME (inceleme sonrası).** Aşağıdaki Adım 1 ve Adım 3 kod bloğu iki
+> yerde YANLIŞTI; commit'lenmiş kod ve tasarım dokümanı (§C) doğrusunu taşıyor,
+> burası tarihsel kayıt olarak duruyor.
+>
+> 1. **Adım 1 gereksizdi.** `pywinpty`'nin okuma tipi Windows makinesi
+>    gerektirmiyor: `pip download pywinpty` ile sdist indirilip kaynak Linux'ta
+>    okunabiliyor. Cevap: `read()` daima `str` döndürüyor ve **kendi sınır
+>    tamamlama döngüsü** var, yani ölçümün 2. dalı; 3. dal riski yok.
+> 2. **`subprocess.list2cmdline(argv)` kullanmak hataydı.** `PtyProcess.spawn`
+>    bir dize aldığında ona `shlex.split(argv, posix=False)` uyguluyor ve
+>    tırnaklar token'ın İÇİNDE kalıyor; `shutil.which()` o adı bulamayınca
+>    `FileNotFoundError` → 127. Varsayılan PowerShell 7 yolu boşluk içerdiği
+>    için bu, `:term`'in hiç açılmaması demekti. Doğrusu: argv **listesini
+>    doğrudan** `PtyProcess.spawn`'a vermek.
+>
+> Ayrıca reader döngüsünde `if not parca: break` yanlıştı (pywinpty boş dizeyi
+> "veri yok" sentinel'i olarak döndürüyor, EOF değil — EOF yalnız `EOFError`)
+> ve `close()` `PtyProcess.close()` çağırmadığı için sekme başına soket/thread
+> sızdırıyordu.
+
+
 Bu task'ın kodu Linux'ta **koşturulamaz**. Adım 1 bir ölçüm ve **Windows makinesinde** yapılıyor; sonucu koda giriyor.
 
 **Files:**

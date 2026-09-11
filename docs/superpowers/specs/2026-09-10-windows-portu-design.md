@@ -145,9 +145,17 @@ okuma yapan bir `QThread` gerekiyor: `read()` → `data_received(bytes)` →
 kuyruklu bağlantıyla ana thread. Desen depoda zaten var:
 `core/file_index.py:43`, `FileIndexWorker`.
 
-**İlk iş: `pywinpty`'nin okuma tipini ölçmek.** `pywinpty` 2.x'in `read()`'i
-`str` mi `bytes` mi döndürdüğü **doğrulama maddesi**, varsayım değil.
-Sözleşme bytes olduğu için transport normalize edecek.
+**Okuma tipi — ÖLÇÜLDÜ, sonuç: 2. dal.** Bu madde "Windows makinesinde
+ölçülecek" diye yazılmıştı; yanlıştı. `pip download pywinpty` ile sdist
+indirilip kaynak **Linux'ta** okunabiliyor ve soruyu kesin olarak cevaplıyor:
+`PtyProcess.read()` **daima `str`** döndürüyor, `data.decode("utf-8")` ile ve
+**kendi sınır tamamlama döngüsüyle** (eksik bir UTF-8 dizisinde bir bayt daha
+okuyor). Yani replacement char üretmiyor, `.encode("utf-8")` kayıpsız ve
+aşağıdaki tablonun 3. dalı **gerçekleşmiyor**. Transport'un kendi tamponuna
+gerek yok.
+
+Ders: "bunu ancak o platformda ölçebiliriz" varsayımı, bağımlılığın kaynağı
+okunabilir olduğunda yanlıştır.
 
 Burada kritik bir olgu var ve tasarımı basitleştiriyor: **`pyte.ByteStream`
 zaten kendi içinde artık tutan bir UTF-8 decoder'ı taşıyor**
@@ -165,10 +173,29 @@ birleşiyor. Dolayısıyla transport'un kendi tamponunu tutmasına **gerek yok**
 Yani gerçek risk yalnız üçüncü satır ve karşılığı "kendi tamponumuzu yazmak"
 değil, "alt seviye API'ye inmek". Ölçüm bunu ilk adımda kesinleştirecek.
 
-**argv → komut satırı.** `pty.fork` + `execvpe` yerine ConPTY tek bir komut
-satırı *dizesi* alır. `subprocess.list2cmdline(argv)` kullanılacak — boşluklu
-yolları (`C:\Program Files\...`) MS C çalışma zamanı kurallarına göre doğru
-tırnaklayan tek doğru yol; elle `" ".join` sessizce bozar.
+**argv doğrudan geçilecek — dizeye çevrilmeyecek.** Bu maddenin ilk hâli
+yanlıştı ve düzeltiliyor: "ConPTY tek bir komut satırı dizesi alır, o yüzden
+`subprocess.list2cmdline(argv)` kullanılacak" deniyordu. `pywinpty`'nin
+kaynağı okununca ortaya çıktı ki `PtyProcess.spawn` bir **dize** aldığında
+ona `shlex.split(argv, posix=False)` uyguluyor, `posix=False` ise tırnakları
+**token'ın içinde bırakıyor**:
+
+```
+['C:\Program Files\PowerShell\7\pwsh.exe']
+  -> list2cmdline -> "C:\Program Files\PowerShell\7\pwsh.exe"
+  -> shlex.split(posix=False) -> ['"C:\Program Files\PowerShell\7\pwsh.exe"']
+```
+
+Ardından `shutil.which()` bu adı bulamıyor, `FileNotFoundError` fırlıyor ve
+bizim sarmalayıcımız onu **127**'ye çeviriyor. Varsayılan kurulumda
+PowerShell 7'nin yolu boşluk içerdiği için bu, `:term`'in hiç kabuk
+açmaması demekti — üstelik 127 "komut bulunamadı" anlamına geldiğinden asıl
+sebep gizleniyordu. Aynısı `C:\Users\Ad Soyad\.platformio\...\pio.exe` için
+de geçerliydi.
+
+Doğrusu: `PtyProcess.spawn`'a **argv listesini doğrudan ver**. `list2cmdline`
+işini `pywinpty` zaten `argv[1:]` üzerinde kendisi yapıyor; bizim önceden
+yapmamız çifte kodlamaydı.
 
 **"Komut bulunamadı" = 127.** POSIX'te `execvpe` patlayınca `os._exit(127)`
 ediliyor ve sekme `✗ (127)` gösteriyor. Windows'ta başarısız spawn *exception*
@@ -403,7 +430,9 @@ Windows makinesinde, **donmuş `.exe` üzerinde**:
 
 | Risk | Şiddet | Karşılık |
 |---|---|---|
-| `pywinpty` `str` döndürüyor **ve** çok baytlı karakteri okuma sınırında tamponlamadan bölüyor | Orta — bozulma sessiz ve aralıklı, ama yalnız bir olasılıkta gerçekleşiyor | `pyte.ByteStream` sınır birleştirmeyi zaten yapıyor (§C tablosu), yani ilk iki olasılıkta risk yok. Üçüncüde alt seviye `winpty.PTY` API'sine inilir. İlk adımda ölçülüyor; sözleşme testi ve elle doğrulama 5 bunu hedefliyor. |
+| ~~`pywinpty` UTF-8'i sınırda bozuyor~~ | **Kapandı** | Kaynak okundu: `read()` kendi sınır tamamlama döngüsünü taşıyor, replacement char üretmiyor. Ayrıca `pyte.ByteStream` da artık tutan bir decoder taşıyor — iki kat güvence. |
+| `pywinpty`'nin sızan soketleri/thread'i | Orta — uzun oturumda sekme başına 2 soket + 1 daemon thread | `close()` artık `PtyProcess.close()` çağırıyor. Dikkat: `isalive()` süreç ölünce `closed=True` yaptığı için GC'nin `__del__`'i no-op'a düşüyor; kapatma açıkça yapılmak zorunda. |
+| `PtyProcess`'in 127.0.0.1'de dinleyen soket açması | Düşük | `pywinpty`'nin tasarımı, bu projede düzeltilemez. Yerel bir süreç teorik olarak kabul edilmeden önce bağlanabilir. Not olarak kayıtta. |
 | Reader thread kapanışta dönmüyor | **Yüksek** — kullanıcı uygulamayı kapatamaz | Süreli `wait` + thread'i bırakma; bağlantı önce kesiliyor. Elle doğrulama 12. |
 | PyInstaller `winpty` DLL'lerini toplamıyor | Orta — yalnız donmuş binary'de görünür | `collect_dynamic_libs`, ve güvence `--version`'dan değil elle doğrulama 4'ten geliyor (§F). |
 | ConPTY gereksinimi (Win10 1809+) | Düşük | Sürüm notunda yazılı, hata yolu açık mesaj basıyor. |
