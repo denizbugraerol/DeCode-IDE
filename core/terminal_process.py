@@ -5,9 +5,16 @@ import pyte
 from PyQt6.QtCore import QObject, pyqtSignal
 
 if sys.platform == "win32":
-    from core.pty_windows import WindowsTransport as _Transport
+    try:
+        from core.pty_windows import WindowsTransport as _Transport
+    except ImportError as _hata:      # pywinpty kurulu değil
+        _IMPORT_HATASI = _hata
+        _Transport = None
+    else:
+        _IMPORT_HATASI = None
 else:
     from core.pty_posix import PosixTransport as _Transport
+    _IMPORT_HATASI = None
 
 
 # PyInstaller ile dondurulmuş süreçte bootloader'ın ezdiği, çocuk sürece
@@ -40,6 +47,48 @@ def child_environment(env=None, frozen=None):
             result.pop(name, None)
 
     return result
+
+
+class _UnavailableTransport:
+    """ Terminal desteği kurulamadığında kullanılan yedek.
+
+    Sözleşmenin TAMAMINI sunar ama hiçbir şey yapmaz: spawn tek satırlık bir
+    uyarı basıp anında EOF verir ve çıkış kodu 127 olur ('komut bulunamadı'
+    ile aynı konvansiyon). Böylece ':term' bir sekme açar, sekme '✗ (127)'
+    der ve kullanıcı nedenini konsolda görür.
+
+    Neden çökmek yerine bu: import anında çökmek, bu portun düzeltmek için
+    var olduğu hatanın kendisiydi. Terminalin yokluğu editörü de
+    götürmemeli. """
+
+    def __init__(self, parent=None):
+        self._exit_code = None
+
+    def default_shell_argv(self):
+        return ["yok"]
+
+    def spawn(self, argv, cwd, env, rows, cols, on_data, on_eof):
+        print(f"Terminal desteği kullanılamıyor: {_IMPORT_HATASI}")
+        self._exit_code = 127
+        on_eof()
+
+    def write(self, data):
+        pass
+
+    def set_size(self, rows, cols):
+        pass
+
+    def is_alive(self):
+        return False
+
+    def exit_code(self):
+        return self._exit_code
+
+    def close(self, timeout=0.5):
+        pass
+
+
+_Transport = _Transport or _UnavailableTransport
 
 
 class _PtyBackedScreen(pyte.Screen):

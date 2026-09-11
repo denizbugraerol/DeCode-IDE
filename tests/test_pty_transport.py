@@ -198,3 +198,20 @@ def test_sozlesme_callback_ana_ip_parciginda_calisir(qapp, bekle):
         assert ana_iplikte and all(ana_iplikte)
     finally:
         surec.close()
+
+
+def test_terminal_destegi_yoksa_uygulama_cokmez(qapp):
+    """ pywinpty kurulu değilse uygulama AÇILMAMALI değil -- yalnız terminal
+    çalışmamalı. Bu dal her platformda sınanabiliyor çünkü yedek transport
+    import dalından bağımsız bir sınıf. """
+    from core import terminal_process as tp
+
+    surec = tp.TerminalProcess(rows=6, cols=40, argv=["olsun"])
+    surec._transport = tp._UnavailableTransport()
+    kodlar = []
+    surec.exited.connect(kodlar.append)
+    surec.start()
+
+    assert kodlar == [127]
+    assert not surec.is_running()
+    assert surec.shell_name() == "yok"
