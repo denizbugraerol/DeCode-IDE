@@ -91,7 +91,7 @@ def test_renkler_hex_bicimini_zorunlu_kilar():
 
 def test_config_path_xdg_degiskenine_saygi_duyar(monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/xdg")
-    assert config.config_path() == "/tmp/xdg/decode/config.toml"
+    assert config.config_path() == os.path.join("/tmp/xdg", "decode", "config.toml")
 
 
 def test_config_path_xdg_yoksa_platformun_varsayilanini_kullanir(monkeypatch):
