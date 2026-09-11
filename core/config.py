@@ -9,6 +9,7 @@ bakılmaz (o temanın bilgisi, bkz. ui/theme.build_palette); burada yalnız
 import copy
 import os
 import re
+import sys
 import tomllib
 
 APP_NAME = "decode"
@@ -88,9 +89,26 @@ def default_settings():
     return copy.deepcopy(DEFAULTS)
 
 
-def config_path():
-    """ XDG'ye saygılı ayar dosyası yolu. """
-    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+def config_path(platform_name=None, environ=None):
+    """ Ayar dosyası yolu.
+
+    XDG_CONFIG_HOME her platformda önceliklidir. Verilmemişse Linux/macOS'ta
+    ~/.config, Windows'ta %APPDATA% kullanılır -- Windows'ta gizli bir
+    nokta-dizin kullanıcının baktığı yer değil.
+
+    platform_name ve environ parametre olarak alınıyor ki Windows dalı
+    LINUX'TA da test edilebilsin; aksi halde yalnız Windows runner'ında
+    sınanabilirdi (main._qt_platform_hint ile aynı desen). """
+    platform_name = sys.platform if platform_name is None else platform_name
+    environ = os.environ if environ is None else environ
+
+    base = environ.get("XDG_CONFIG_HOME")
+    if not base:
+        if platform_name == "win32":
+            base = environ.get("APPDATA") or os.path.join(
+                os.path.expanduser("~"), "AppData", "Roaming")
+        else:
+            base = os.path.join(os.path.expanduser("~"), ".config")
     return os.path.join(base, APP_NAME, FILE_NAME)
 
 

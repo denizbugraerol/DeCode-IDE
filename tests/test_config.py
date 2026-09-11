@@ -1,5 +1,7 @@
 """ Ayar yükleyicinin sözleşmesi: varsayılanlar, birleştirme, doğrulama.
 Qt gerektirmez. """
+import os
+
 import core.config as config
 
 
@@ -95,6 +97,30 @@ def test_config_path_xdg_yoksa_ev_dizinini_kullanir(monkeypatch):
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", "/home/deneme")
     assert config.config_path() == "/home/deneme/.config/decode/config.toml"
+
+
+def test_config_path_windowsta_appdata_kullanir():
+    """ Windows'ta gizli bir nokta-dizin kullanıcının baktığı yer değil.
+    platform_name parametre olduğu için bu dal LINUX'ta da sınanabiliyor
+    (main._qt_platform_hint ile aynı desen). """
+    yol = config.config_path(platform_name="win32",
+                             environ={"APPDATA": r"C:\Users\deneme\AppData\Roaming"})
+    assert yol == os.path.join(r"C:\Users\deneme\AppData\Roaming",
+                               "decode", "config.toml")
+
+
+def test_config_path_windowsta_da_xdg_onceliklidir():
+    yol = config.config_path(platform_name="win32",
+                             environ={"XDG_CONFIG_HOME": "/xdg",
+                                      "APPDATA": r"C:\AppData"})
+    assert yol == os.path.join("/xdg", "decode", "config.toml")
+
+
+def test_config_path_linux_dali_degismedi(monkeypatch):
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setenv("HOME", "/home/deneme")
+    yol = config.config_path(platform_name="linux")
+    assert yol == os.path.join("/home/deneme", ".config", "decode", "config.toml")
 
 
 def test_sablon_varsayilanlarin_aynisini_uretir():
