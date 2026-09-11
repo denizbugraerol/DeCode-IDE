@@ -1130,6 +1130,11 @@ def test_config_path_windowsta_da_xdg_onceliklidir():
 def test_config_path_linux_dali_degismedi(monkeypatch):
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", "/home/deneme")
+    # USERPROFILE de kuruluyor: platform_name="linux" yalnız config_path'in
+    # İÇİNDEKİ dalı zorluyor, ama expanduser("~") host Python'unun
+    # implementasyonunu kullanıyor ve Windows'taki ntpath.expanduser HOME'a
+    # hiç bakmıyor -- önce USERPROFILE'a bakıyor.
+    monkeypatch.setenv("USERPROFILE", "/home/deneme")
     yol = config.config_path(platform_name="linux")
     assert yol == os.path.join("/home/deneme", ".config", "decode", "config.toml")
 ```
@@ -1568,7 +1573,7 @@ Expected: her iki dosyada da `{'run': {'shell': 'bash'}}` ve matriste Windows sa
 - [ ] **Step 6: Testleri çalıştır ve commit**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: `286 passed` (284 + Task 5'in 2 spec testi). Workflow değişikliği testleri etkilemez; bu bir regresyon kontrolü.
+Expected: `288 passed` (286 + Task 5'in 2 spec testi). Not: 286, Task 4b'nin (plan dışı, yol ayracı taşınabilirliği) eklediği 2 testi içeriyor. Workflow değişikliği testleri etkilemez; bu bir regresyon kontrolü.
 
 ```bash
 git add .github/workflows/tests.yml .github/workflows/release.yml
@@ -1807,7 +1812,7 @@ Tabloya satır ekle:
 - [ ] **Step 7: Testleri çalıştır ve commit**
 
 Run: `.venv/bin/python -m pytest -q`
-Expected: `286 passed` (`tests/test_no_hardcoded_colors.py` dahil — belge değişiklikleri onu etkilemez).
+Expected: `288 passed` (`tests/test_no_hardcoded_colors.py` dahil — belge değişiklikleri onu etkilemez).
 
 ```bash
 git add README.md CHANGELOG.md docs/Roadmap.md CLAUDE.md docs/sprint/sprint-14.md docs/sprint/README.md
@@ -1828,6 +1833,6 @@ Bunlar plan task'ı değil; insan kararı gerektiriyor.
 
 ## Notlar
 
-- **Test sayıları** (273 → 278 → 279 → 284 → 286) yön göstericidir, sözleşme değil. Sayı tutmuyorsa hangi testin eklendiğine/kaybolduğuna bak; *düşmesi* her zaman incelenecek bir işarettir.
+- **Test sayıları** (273 → 278 → 279 → 284 → 286 → 288) yön göstericidir. 284'ten 286'ya sıçrama, plan dışı Task 4b'den (yol ayracı taşınabilirliği) geliyor., sözleşme değil. Sayı tutmuyorsa hangi testin eklendiğine/kaybolduğuna bak; *düşmesi* her zaman incelenecek bir işarettir.
 - **Task 3 Linux'ta doğrulanamaz.** Adım 4 yalnız "Windows kodu Linux'u bozmadı"yı ölçer; gerçek doğrulama Adım 5–6'da, Windows makinesinde.
 - **Task 3 Adım 1 durdurucu olabilir:** ölçüm üçüncü dala (`str` + replacement char) düşerse alt seviye `winpty.PTY` API'sine inmek gerekir ve bu, Adım 3'ün kodunu değiştirir. O noktada dur ve planı güncelle.
