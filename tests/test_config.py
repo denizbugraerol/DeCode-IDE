@@ -1,6 +1,7 @@
 """ Ayar yükleyicinin sözleşmesi: varsayılanlar, birleştirme, doğrulama.
 Qt gerektirmez. """
 import os
+import sys
 
 import core.config as config
 
@@ -93,10 +94,22 @@ def test_config_path_xdg_degiskenine_saygi_duyar(monkeypatch):
     assert config.config_path() == "/tmp/xdg/decode/config.toml"
 
 
-def test_config_path_xdg_yoksa_ev_dizinini_kullanir(monkeypatch):
+def test_config_path_xdg_yoksa_platformun_varsayilanini_kullanir(monkeypatch):
+    """ Parametresiz çağrı, ÇALIŞTIĞI platformun dalını seçmeli.
+
+    Dalların kendisini test_config_path_linux_dali_degismedi ve
+    test_config_path_windowsta_appdata_kullanir açıkça sınıyor; buradaki
+    değer, platform_name=None'ın sys.platform'a çözülmesini korumak. O yüzden
+    test bir dala pinlenmiyor ya da atlanmıyor -- iki platformda da koşuyor,
+    sadece beklentisi platforma göre kuruluyor. """
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    monkeypatch.setenv("HOME", "/home/deneme")
-    assert config.config_path() == "/home/deneme/.config/decode/config.toml"
+    if sys.platform == "win32":
+        monkeypatch.setenv("APPDATA", r"C:\Users\deneme\AppData\Roaming")
+        taban = r"C:\Users\deneme\AppData\Roaming"
+    else:
+        monkeypatch.setenv("HOME", "/home/deneme")
+        taban = os.path.join("/home/deneme", ".config")
+    assert config.config_path() == os.path.join(taban, "decode", "config.toml")
 
 
 def test_config_path_windowsta_appdata_kullanir():
