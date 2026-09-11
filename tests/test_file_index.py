@@ -38,3 +38,13 @@ def test_max_files_sinirinda_durur(tmp_path):
 
 def test_okunamayan_kok_bos_liste_dondurur(tmp_path):
     assert scan_files(str(tmp_path / "yok")) == []
+
+
+def test_yollar_her_platformda_egik_cizgi_kullanir(tmp_path):
+    """ Kanonik yol biçimi POSIX tarzı: os.walk Windows'ta 'ui\\main_window.py'
+    üretir, palet ve testler ise her yerde 'ui/main_window.py' bekliyor.
+    Ters bölü sızarsa ':ts' Windows'ta öteki platformlardan farklı görünür. """
+    _hazirla(tmp_path)
+    sonuc = scan_files(str(tmp_path))
+    assert "ui/main_window.py" in sonuc
+    assert not any("\\" in yol for yol in sonuc)
