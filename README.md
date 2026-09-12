@@ -57,6 +57,10 @@ uygulamanın çalışması için şart değildir.
 Gereksinim: Windows 10 sürüm 1809 ya da üstü (terminal paneli ConPTY
 kullanıyor).
 
+> Windows derlemesi otomatik testlerden geçiyor, ancak **henüz elle
+> denenmedi**: ConPTY tarafı (`core/pty_windows.py`) gerçek bir Windows
+> oturumunda çalıştırılmadı. Geri bildirim memnuniyetle karşılanır.
+
 Intel Mac'ler (x86_64) ve Windows on ARM için hazır dosya yok.
 
 ### Kaynaktan

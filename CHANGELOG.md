@@ -17,6 +17,8 @@ doldurulacak.
 ### Bilinen sınırlar
 - Windows on ARM ve Intel Mac (x86_64) için hazır dosya yok.
 - `.exe` imzasız: SmartScreen ilk açılışta uyarı gösteriyor.
+- Windows derlemesi elle denenmedi; ConPTY yolu yalnız otomatik testler ve
+  statik doğrulamayla güvence altında.
 
 ## v0.3.0 — 10 Eyl 2026
 

@@ -1,5 +1,5 @@
 # Sprint 14 — Windows portu ve dağıtımı
-**Tarih:** 10 Eyl 2026 · **Durum:** Tamamlandı · **Commit(ler):** `207a2a7..010e55d`
+**Tarih:** 10 Eyl 2026 · **Durum:** Tamamlandı · **Commit(ler):** `207a2a7..010e55d` — başlıcaları: `2704f81` transport dikişi, `e965da2` ConPTY transport'u, `1b775d5` yol ayracı normalleştirmesi, `b6d0048` spec, `010e55d` CI matrisi
 
 ## Hedef
 DeCode IDE'yi Windows'ta çalışır hâle getirip tek dosya `.exe` olarak

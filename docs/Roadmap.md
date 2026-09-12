@@ -149,6 +149,10 @@ yer tutuyor.
   portu `core/pty_windows.py`'de, okuma `QSocketNotifier` yerine bir
   `QThread`'de (Windows'ta notifier yalnız socket tanıtıcılarıyla çalışıyor).
   `windows-latest` hem test hem release matrisinde.
+  **Elle doğrulama henüz yapılmadı:** macOS'un aksine kalıcı bir sınır değil
+  — projenin bir Windows makinesi var, ama bu sprint Linux'ta yürütüldü.
+  Tasarım dokümanındaki §Elle doğrulama listesindeki 13 madde release'in ön
+  koşulu.
 
 ## Teknik borç
 
