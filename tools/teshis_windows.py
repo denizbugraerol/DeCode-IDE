@@ -20,12 +20,48 @@ import os
 import sys
 import time
 
+# DİKKAT: bu iki satır olmadan betik kendi İKİNCİ print()'inde ölüyordu.
+# Windows'ta stdout bir BORUYA (CI, dosya yönlendirmesi) gittiğinde Python
+# locale kodlamasını kullanıyor -- GitHub runner'ında cp1252 -- ve Türkçe
+# 'ı' oraya sığmıyor: UnicodeEncodeError. İnteraktif konsolda sorun yok,
+# çünkü Python 3.6+ orada WriteConsoleW ile UTF-16 yazıyor.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def baslik(metin):
     print(f"\n{'=' * 70}\n{metin}\n{'=' * 70}", flush=True)
+
+
+# --- 0. Üretim print() yolu: Türkçe mesajlar boruya yazılabiliyor mu? ---
+#
+# Bu bölüm reconfigure'dan SONRA koşuyor, o yüzden kendi çıktısı güvenli.
+# Ölçtüğü şey, uygulamanın reconfigure YAPMADAN kullandığı kodlama.
+
+baslik("0. stdout kodlaması ve Türkçe mesajlar")
+
+ham_kodlama = getattr(sys.stdout, "encoding", "?")
+locale_kodlama = __import__("locale").getpreferredencoding(False)
+print("reconfigure sonrası sys.stdout.encoding:", ham_kodlama, flush=True)
+print("locale.getpreferredencoding():", locale_kodlama, flush=True)
+print("sys.stdout bir tty mi:", sys.stdout.isatty(), flush=True)
+
+# Uygulamanın gerçekten bastığı iki mesaj.
+ORNEKLER = [
+    "Ayar dosyası oluşturuldu: C:/x/config.toml",   # main.py
+    "'pio' bulunamadı; PlatformIO kurulu mu?",       # IDEWindow._on_pio_requested
+    "Sabit genişlikli 'Fira Code' fontu bulunamadı", # ui/theme.resolve_font_family
+]
+for ornek in ORNEKLER:
+    try:
+        ornek.encode(locale_kodlama)
+        sonuc = "OK"
+    except UnicodeEncodeError as hata:
+        sonuc = f"KIRILIR -> {type(hata).__name__}: {hata.reason} ({hata.object[hata.start:hata.end]!r})"
+    print(f"  {locale_kodlama} ile {ornek[:45]!r}: {sonuc}", flush=True)
 
 
 # --- 1. pywinpty'nin çıplak davranışı (bizim kodumuz hiç devrede değil) ---
