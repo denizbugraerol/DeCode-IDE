@@ -165,6 +165,9 @@ yer tutuyor.
 | Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | `embedded/` |
 | Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
+| Windows'ta süreç bitişi ~5 s gecikiyor | Kabul edildi (Sprint 14): ConPTY/`pywinpty` Rust katmanından geliyor, Python'dan kaldırılamıyor. Süreç doğru bitiyor, yalnız sekmedeki `✓`/`✗` geç görünüyor. Test zaman aşımı Windows'ta 20 s'ye çıkarıldı | `core/pty_windows.py`, `tests/conftest.py` |
+| Windows + offscreen'de font veritabanı boş | Kabul edildi (Sprint 14): offscreen plugin'inin orada font arka ucu yok, `QFontDatabase.families()` boş dönüyor. İki font testi o durumda atlanıyor; üretimi etkilemiyor | `tests/test_terminal_font.py` |
+| Türkçe mesajlar Windows'ta boruya yazılamıyor | Açık: `sys.stdout` boruya gittiğinde Python locale kodlamasını kullanıyor (runner'da `cp1252`) ve `ı`/`ş` oraya sığmıyor -- `DeCode.exe > log.txt` ilk Türkçe uyarıda `UnicodeEncodeError` verebilir. İnteraktif konsol etkilenmiyor | `main.py`, `core/config.py`, `ui/theme.py` |
 | `forkpty()` çok iş parçacıklı süreçte | Uyarı duruyor; macOS'ta bunun yol açtığı kapanış kilidi çözüldü (`close()` artık yalnız `WNOHANG` ile bekliyor) | `core/terminal_process.py` |
 | Tema kodda sabit | Çözüldü ([Sprint 09](sprint/sprint-09.md)): renkler `ui/theme.py`'deki tek palete taşındı, ayar dosyasının `[colors]` bölümünden özelleştirilebiliyor | `ui/theme.py` |
 
