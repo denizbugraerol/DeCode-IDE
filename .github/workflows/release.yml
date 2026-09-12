@@ -78,7 +78,17 @@ jobs:
           chmod +x "$BINARY"
           ls -lh "$BINARY"
 
-          if ! CIKTI=$(QT_QPA_PLATFORM=offscreen "$BINARY" --version); then
+          # 'tr -d "\r"' KALDIRMA: Windows'ta CPython, sys.stdout'u '\n' ->
+          # '\r\n' çevirecek şekilde açar -- BORUYA yazarken de. Bash
+          # '$(...)' komut değişimi yalnız SONDAKİ '\n'yi kırpar, satır
+          # sonundaki '\r' kalır (ölçüldü: çıktı 'DeCode IDE 0.3.0\r',
+          # BEKLENEN'den 1 karakter uzun). Bu satır olmadan aşağıdaki dize
+          # karşılaştırması Windows'ta HER ZAMAN başarısız olur ve hata
+          # mesajı yanıltıcı biçimde "sürüm uyuşmuyor" der -- sürüm doğrudur,
+          # sorun satır sonudur. Linux/macOS'ta 'tr' no-op (CIKTI'de '\r'
+          # yok). Tam da "gereksiz görünüp sessizce silinecek" türden bir
+          # satır: silinirse release hattı yeniden ve fark edilmeden kırılır.
+          if ! CIKTI=$(QT_QPA_PLATFORM=offscreen "$BINARY" --version | tr -d '\r'); then
             echo "::error title=Duman testi (${{ matrix.ad }})::binary çalışmadı"
             exit 1
           fi
@@ -167,6 +177,12 @@ jobs:
 
           Windows 10 sürüm 1809 ya da üstü gerekir (terminal paneli
           ConPTY kullanıyor).
+
+          **Windows derlemesi otomatik testlerden geçiyor, ancak elle
+          denenmedi** — bu, macOS'takinden farklı bir çekince: proje bir
+          Windows makinesine erişebiliyor, elle doğrulama henüz yapılmadı
+          (kalıcı bir sınırlama değil, bir sonraki sürümün ön koşulu).
+          Geri bildirim memnuniyetle karşılanır.
 
           Python, pip ya da bağımlılık kurulumu gerekmez.
           Değişiklikler için `CHANGELOG.md`'ye bakın.

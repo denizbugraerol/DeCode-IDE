@@ -14,7 +14,17 @@ WINDOWS = sys.platform == "win32"
 
 
 def echo_argv(metin):
-    """ Verilen metni basıp 0 ile çıkan komut. """
+    """ Verilen metni basıp 0 ile çıkan komut.
+
+    UYARI (davranış değiştirilmedi, yalnız not): Windows'ta 'cmd /c echo'
+    çıktısı konsol kod sayfasından geçer ve GitHub Actions runner'ının
+    varsayılan OEM kod sayfası 437'dir -- bu kod sayfasında 'ı ğ ş İ Ğ Ş'
+    yoktur. ConPTY'nin ekran tamponu UTF-16 tuttuğu için Türkçe karakter
+    içeren testin (tests/test_pty_transport.py) yine de sağ kalması
+    beklenir, ama bu HİÇ Windows runner'ında koşulmadı. O test Windows'ta
+    kırılırsa ilk şüpheli 'core/pty_windows.py' transport'u değil, BU
+    yardımcı olmalı: 'chcp 65001' önekiyle ya da PowerShell tabanlı bir
+    argv karşılığıyla çözülür. """
     if WINDOWS:
         return ["cmd", "/c", "echo", metin]
     return ["/bin/echo", metin]

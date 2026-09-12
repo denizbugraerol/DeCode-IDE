@@ -56,6 +56,14 @@ if sys.platform == "win32":
 
     _HIDDEN.append("winpty")
     _BINARIES += collect_dynamic_libs("winpty")
+    # UYARI (davranış değiştirilmedi, yalnız not): collect_dynamic_libs
+    # yalnız '*.dll' / '*.dylib' / 'lib*.so' kalıplarını tarar.
+    # pywinpty'nin legacy WinPTY backend'i AYRICA 'winpty-agent.exe' taşır ve
+    # '.exe' bu kalıplara hiç takılmaz -- yani o backend seçilirse
+    # winpty-agent.exe donmuş binary'ye hiç kopyalanmaz. Bugün tutarlı,
+    # çünkü ConPTY varsayılan backend ve sürüm notu Windows 10 1809+ istiyor
+    # (WinPTY yola hiç girmiyor); ama 'PYWINPTY_BACKEND=1' ile zorlanırsa ya
+    # da 1809 altında çalıştırılırsa, donmuş binary SESSİZCE başarısız olur.
 
     # Konsol gerçekten var (stdout çalışır, '--version' duman testi hiç
     # değişmeden geçer) ama bootloader kendi açtığı pencereyi anında gizler:

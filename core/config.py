@@ -1,5 +1,8 @@
-""" Ayar dosyası: ~/.config/decode/config.toml okunur, varsayılanların üstüne
-bindirilir ve doğrulanır.
+""" Ayar dosyası okunur, varsayılanların üstüne bindirilir ve doğrulanır.
+
+Dosyanın yolu platforma göre değişir (bkz. config_path): Linux/macOS'ta
+~/.config/decode/config.toml, Windows'ta %APPDATA%\\decode\\config.toml;
+XDG_CONFIG_HOME her platformda tanımlıysa önceliklidir.
 
 Qt'ye bağımlı değil — tamamen saf, doğrudan test edilebilir. Bozuk ya da
 tanınmayan anahtarlar sessizce yutulmuyor: her biri bir uyarı metnine dönüşüyor

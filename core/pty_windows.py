@@ -217,11 +217,21 @@ class WindowsTransport(QObject):
         terminate(force=True) SIGINT'i tekrarlayıp bir ~0.1s, sonra SIGTERM
         için bir ~0.1s daha (toplam ~0.3s terminate'lerde); artık gerçekten
         çalışan self._pty.close() kendi delayafterclose'u (~0.1s) kadar bir
-        uyku daha ekliyor; sonra buradaki wait(timeout) en fazla 'timeout'
-        kadar (varsayılan 0.5s) daha bekliyor -- toplamda ana iş
-        parçacığında ~0.8-0.9s. _on_reader_eof'un ayrı 0.5s'lik yoklaması bu
-        süreye dahil değil (o, EOF sinyali işlenirken çalışıyor). Testteki
-        5.0s üst sınırın altında kalıyor, bolca payla. """
+        uyku daha ekliyor VE GÖVDESİNDE 'if self.isalive(): self.terminate(
+        force=False)' vardır -- süreç bu noktada hâlâ (en kötü durumda)
+        ayaktaysa bu, kendi delayafterterminate'i (~0.1s daha) olan İKİNCİ
+        bir terminate(force=False) çağrısıdır ve toplama eklenmeden önce
+        gözden kaçması kolaydır. Sonra buradaki wait(timeout) en fazla
+        'timeout' kadar (varsayılan 0.5s) daha bekliyor -- toplamda ana iş
+        parçacığında en kötü durumda ~1.0s (0.1 + 0.3 + 0.1 + 0.1 + 0.5).
+        _on_reader_eof'un ayrı 0.5s'lik yoklaması bu süreye dahil değil (o,
+        EOF sinyali işlenirken çalışıyor). Testteki 5.0s üst sınırın altında
+        kalıyor, bolca payla.
+
+        TerminalPanel.shutdown() sekmeleri TEK TEK, sırayla kapatır (bkz.
+        ui/components/terminal_panel.py) -- yani bu ~1.0s en kötü durum, tek
+        bir oturum için değil, ÇOK SEKMELİ bir pencerede kapanışta üst üste
+        BİRİKEN bir gecikme anlamına gelir. """
         # Kuyrukta bekleyen bir data_received/eof olayı, aşağıdaki
         # disconnect'ten SONRA bile teslim edilebilir -- kuyruklanmış bir
         # olay disconnect ile geri çekilmez. Callback'leri burada None'a

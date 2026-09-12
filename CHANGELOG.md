@@ -6,8 +6,9 @@ Sürüm numarası ve tarih, `core/version.py` yükseltilip `v*` tag'i atılırke
 doldurulacak.
 
 ### Eklendi
-- Windows desteği: `:term` ve bütün `:pio` alt komutları ConPTY üzerinde
-  çalışıyor; tek dosya `.exe` GitHub Releases'te.
+- Windows desteği: `:term` ve bütün `:pio` alt komutları için ConPTY yolu
+  eklendi; tek dosya `.exe` GitHub Releases'te. (Windows derlemesi elle
+  denenmedi, bkz. "Bilinen sınırlar".)
 
 ### Değişti
 - `TerminalProcess` bir transport dikişine ayrıldı (`core/pty_posix.py`,
