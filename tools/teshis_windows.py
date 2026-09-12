@@ -82,17 +82,21 @@ tur = 0
 bos_tur = 0
 while time.monotonic() < son:
     tur += 1
+    tur_basi = time.monotonic()
     try:
         veri = surec.read(65536)
     except EOFError as hata:
-        print(f"tur {tur}: EOFError -> {hata!r}  <-- beklediğimiz çıkış", flush=True)
+        print(f"tur {tur}: read()={round(time.monotonic() - tur_basi, 3)}s "
+              f"EOFError -> {hata!r}  <-- beklediğimiz çıkış", flush=True)
         break
     except Exception as hata:
         print(f"tur {tur}: {type(hata).__name__} -> {hata!r}", flush=True)
         break
+    read_suresi = round(time.monotonic() - tur_basi, 3)
     if veri:
-        print(f"tur {tur}: tip={type(veri).__name__} len={len(veri)} "
-              f"repr={veri[:60]!r} isalive={surec.isalive()}", flush=True)
+        print(f"tur {tur}: read()={read_suresi}s tip={type(veri).__name__} "
+              f"len={len(veri)} repr={veri[:60]!r} isalive={surec.isalive()}",
+              flush=True)
     else:
         bos_tur += 1
         if bos_tur <= 3 or bos_tur % 2000 == 0:
@@ -139,13 +143,15 @@ print("transport._pty:", transport._pty is not None,
       "· reader.isRunning():",
       transport._reader.isRunning() if transport._reader else "(yok)", flush=True)
 
-son = time.monotonic() + 10.0
+olcum_basi = time.monotonic()
+son = olcum_basi + 15.0
 while time.monotonic() < son:
     app.processEvents()
     if any(o.startswith("exited") for o in olaylar):
         break
     time.sleep(0.005)
 
+print(f"exited'a kadar: {round(time.monotonic() - olcum_basi, 3)}s", flush=True)
 print("olaylar (ilk 8):", olaylar[:8], "· toplam:", len(olaylar), flush=True)
 print("is_running:", islem.is_running(), "· exit_code:", islem.exit_code, flush=True)
 print("transport._exit_code:", transport._exit_code, flush=True)
