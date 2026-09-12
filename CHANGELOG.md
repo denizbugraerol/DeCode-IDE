@@ -1,6 +1,9 @@
 # Değişiklik Günlüğü
 
-## 10 Eyl 2026
+## Yayınlanmamış
+
+Sürüm numarası ve tarih, `core/version.py` yükseltilip `v*` tag'i atılırken
+doldurulacak.
 
 ### Eklendi
 - Windows desteği: `:term` ve bütün `:pio` alt komutları ConPTY üzerinde
