@@ -19,7 +19,8 @@ MAX_FILES = 20000
 def scan_files(root, ignored_dirs=IGNORED_DIRS, max_files=MAX_FILES):
     """ 'root' altındaki dosyaları köke göreli yollar olarak döndürür.
     IGNORED_DIRS ve nokta ile başlayan dizin/dosyalar atlanır; max_files
-    sınırına gelince tarama olduğu yerde biter. Kök okunamıyorsa boş liste. """
+    sınırına gelince tarama olduğu yerde biter. Kök okunamıyorsa boş liste.
+    Dönen yollar her platformda '/' ayraçlıdır. """
     paths = []
 
     for dirpath, dirnames, filenames in os.walk(root):
@@ -33,7 +34,13 @@ def scan_files(root, ignored_dirs=IGNORED_DIRS, max_files=MAX_FILES):
         for name in sorted(filenames):
             if name.startswith("."):
                 continue
-            paths.append(os.path.relpath(os.path.join(dirpath, name), root))
+            # Ayraç normalize ediliyor: os.path.relpath Windows'ta
+            # 'ui\main_window.py' döndürür. Uygulamanın içinde kanonik biçim
+            # POSIX tarzı ('/') -- palet her platformda aynı görünsün ve
+            # fuzzy skorlaması aynı segmentleri görsün diye. Windows'ta Python
+            # ve Qt eğik çizgiyi kabul ettiği için dönen yol yine açılabilir.
+            goreli = os.path.relpath(os.path.join(dirpath, name), root)
+            paths.append(goreli.replace(os.sep, "/"))
             if len(paths) >= max_files:
                 return paths
 

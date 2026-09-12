@@ -8,7 +8,11 @@ excludes listesi boyutun ana kaldıracı. Uygulama yalnız QtCore/QtGui/QtWidget
 kullanıyor (QtTest sadece testlerde), oysa PyQt6 260 MB ve içinde Quick, Qml,
 Designer, ShaderTools, Quick3D, Pdf var. QtNetwork/QtDBus/QtOpenGL DIŞLANMIYOR:
 Qt Widgets yığını bunları çalışma anında dolaylı arayabilir, kazancı riskine
-değmez. """
+değmez.
+
+Windows'ta iki ek var: hide_console (konsol GERÇEKTEN var, stdout ve
+'--version' çalışıyor, ama bootloader kendi açtığı pencereyi anında
+gizliyor) ve pywinpty'nin DLL'lerinin elle toplanması. """
 import os
 import platform
 import sys
@@ -23,16 +27,61 @@ from core.version import __version__      # noqa: E402
 # türetmek doğru: 'DeCode-v0.1.2-linux-x86_64', 'DeCode-v0.1.2-macos-arm64'.
 _OS = {"linux": "linux", "darwin": "macos", "win32": "windows"}.get(
     sys.platform, sys.platform)
-_ARCH = platform.machine()                # x86_64 / arm64
+
+# platform.machine() Windows'ta 'x86_64' değil 'AMD64' döner; normalleştirilmezse
+# çıktı 'DeCode-v0.3.0-windows-AMD64' olur ve release.yml'deki ad kontrolü
+# release'i kırar. Linux ('x86_64') ve macOS ('arm64') adları değişmiyor.
+_ARCH_ADLARI = {
+    "amd64": "x86_64",
+    "x86_64": "x86_64",
+    "arm64": "arm64",
+    "aarch64": "arm64",
+}
+_MAKINE = platform.machine().lower()
+_ARCH = _ARCH_ADLARI.get(_MAKINE, _MAKINE)
 CIKTI_ADI = f"DeCode-v{__version__}-{_OS}-{_ARCH}"
+
+# PyInstaller Windows'ta ada '.exe' ekliyor; gerçek dosya
+# 'DeCode-v0.3.0-windows-x86_64.exe' oluyor.
+
+_HIDDEN = []
+_BINARIES = []
+_EXE_EK = {}
+
+if sys.platform == "win32":
+    # PyInstaller pywinpty'nin uzantısını ve yanındaki DLL'leri kendiliğinden
+    # bulmayabiliyor. Eksik DLL'in belirtisi sinsi: kaynaktan çalışırken her
+    # şey normal, YALNIZ donmuş binary'de terminal açılmıyor.
+    from PyInstaller.utils.hooks import collect_dynamic_libs
+
+    _HIDDEN.append("winpty")
+    _BINARIES += collect_dynamic_libs("winpty")
+    # UYARI (davranış değiştirilmedi, yalnız not): collect_dynamic_libs
+    # yalnız '*.dll' / '*.dylib' / 'lib*.so' kalıplarını tarar.
+    # pywinpty'nin legacy WinPTY backend'i AYRICA 'winpty-agent.exe' taşır ve
+    # '.exe' bu kalıplara hiç takılmaz -- yani o backend seçilirse
+    # winpty-agent.exe donmuş binary'ye hiç kopyalanmaz. Bugün tutarlı,
+    # çünkü ConPTY varsayılan backend ve sürüm notu Windows 10 1809+ istiyor
+    # (WinPTY yola hiç girmiyor); ama 'PYWINPTY_BACKEND=1' ile zorlanırsa ya
+    # da 1809 altında çalıştırılırsa, donmuş binary SESSİZCE başarısız olur.
+
+    # Konsol gerçekten var (stdout çalışır, '--version' duman testi hiç
+    # değişmeden geçer) ama bootloader kendi açtığı pencereyi anında gizler:
+    # çift tıklamayla açılışta siyah kutu görünmez, cmd'den çalıştırılırsa
+    # mevcut konsol devralınır ve çıktı görünür.
+    #
+    # Yalnız Windows'ta ekleniyor: PyInstaller başka platformlarda
+    # "Ignoring hide_console; supported only on Windows!" uyarısı basıp yok
+    # sayar ve her build'in logunu kirletir.
+    _EXE_EK["hide_console"] = "hide-early"
 
 
 a = Analysis(
     [os.path.join(ROOT, "main.py")],
     pathex=[ROOT],
-    binaries=[],
+    binaries=_BINARIES,
     datas=[],
-    hiddenimports=[],
+    hiddenimports=_HIDDEN,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -72,4 +121,5 @@ exe = EXE(                                 # noqa: F821
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    **_EXE_EK,
 )

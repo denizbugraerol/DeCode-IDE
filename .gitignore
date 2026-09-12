@@ -1,9 +1,35 @@
-*.claude
-CLAUDE.md
+# Sanal ortamlar. '.venv-win' listede çünkü Windows'ta elle doğrulama
+# yapılırken ikinci bir ortam kuruluyor ('py -m venv .venv-win'); onsuz ilk
+# Windows oturumu kirli bir ağaçla başlıyor.
 .venv
+.venv-win
+venv/
+
+# Python derleme çıktıları
 __pycache__/
 *.pyc
+*.pyo
+
+# Test ve araç önbellekleri
 .pytest_cache/
-.superpowers/
+.mypy_cache/
+
+# PyInstaller çıktıları.
+# DİKKAT: '*.spec' BURAYA EKLENMEYECEK. PyInstaller şablonlarının çoğu onu
+# yok sayar, ama packaging/decode.spec bu projede build'in tek yapılandırma
+# kaynağı ve bilinçli olarak sürüm kontrolünde.
 build/
 dist/
+
+# Editör dizinleri ve işletim sistemi artıkları. Üçü de listede çünkü proje
+# üç platformda birden derleniyor (Linux, macOS, Windows).
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Yerel araç dosyaları: '.claude/' (Claude Code'un proje dizini) ve
+# '.superpowers/' (tasarım/uygulama oturumlarının geçici çalışma alanı).
+*.claude
+.superpowers/

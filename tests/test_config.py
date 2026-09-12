@@ -1,5 +1,8 @@
 """ Ayar yükleyicinin sözleşmesi: varsayılanlar, birleştirme, doğrulama.
 Qt gerektirmez. """
+import os
+import sys
+
 import core.config as config
 
 
@@ -88,13 +91,55 @@ def test_renkler_hex_bicimini_zorunlu_kilar():
 
 def test_config_path_xdg_degiskenine_saygi_duyar(monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/xdg")
-    assert config.config_path() == "/tmp/xdg/decode/config.toml"
+    assert config.config_path() == os.path.join("/tmp/xdg", "decode", "config.toml")
 
 
-def test_config_path_xdg_yoksa_ev_dizinini_kullanir(monkeypatch):
+def test_config_path_xdg_yoksa_platformun_varsayilanini_kullanir(monkeypatch):
+    """ Parametresiz çağrı, ÇALIŞTIĞI platformun dalını seçmeli.
+
+    Dalların kendisini test_config_path_linux_dali_degismedi ve
+    test_config_path_windowsta_appdata_kullanir açıkça sınıyor; buradaki
+    değer, platform_name=None'ın sys.platform'a çözülmesini korumak. O yüzden
+    test bir dala pinlenmiyor ya da atlanmıyor -- iki platformda da koşuyor,
+    sadece beklentisi platforma göre kuruluyor. """
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    if sys.platform == "win32":
+        monkeypatch.setenv("APPDATA", r"C:\Users\deneme\AppData\Roaming")
+        taban = r"C:\Users\deneme\AppData\Roaming"
+    else:
+        monkeypatch.setenv("HOME", "/home/deneme")
+        taban = os.path.join("/home/deneme", ".config")
+    assert config.config_path() == os.path.join(taban, "decode", "config.toml")
+
+
+def test_config_path_windowsta_appdata_kullanir():
+    """ Windows'ta gizli bir nokta-dizin kullanıcının baktığı yer değil.
+    platform_name parametre olduğu için bu dal LINUX'ta da sınanabiliyor
+    (main._qt_platform_hint ile aynı desen). """
+    yol = config.config_path(platform_name="win32",
+                             environ={"APPDATA": r"C:\Users\deneme\AppData\Roaming"})
+    assert yol == os.path.join(r"C:\Users\deneme\AppData\Roaming",
+                               "decode", "config.toml")
+
+
+def test_config_path_windowsta_da_xdg_onceliklidir():
+    yol = config.config_path(platform_name="win32",
+                             environ={"XDG_CONFIG_HOME": "/xdg",
+                                      "APPDATA": r"C:\AppData"})
+    assert yol == os.path.join("/xdg", "decode", "config.toml")
+
+
+def test_config_path_linux_dali_degismedi(monkeypatch):
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", "/home/deneme")
-    assert config.config_path() == "/home/deneme/.config/decode/config.toml"
+    # os.path.expanduser gerçek host'un os.path'i (posixpath/ntpath) neyse onu
+    # kullanır; platform_name="linux" yalnız config_path'in KENDİ dalını
+    # seçer, expanduser'ı değil. Gerçek bir Windows runner'ında ntpath.expanduser
+    # HOME'a değil USERPROFILE'a bakar -- onu da vermezsek bu test orada
+    # monkeypatch'lenmemiş gerçek USERPROFILE'ı okur ve sahte biçimde kırılır.
+    monkeypatch.setenv("USERPROFILE", "/home/deneme")
+    yol = config.config_path(platform_name="linux")
+    assert yol == os.path.join("/home/deneme", ".config", "decode", "config.toml")
 
 
 def test_sablon_varsayilanlarin_aynisini_uretir():

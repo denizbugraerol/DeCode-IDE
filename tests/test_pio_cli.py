@@ -1,6 +1,9 @@
 """ pio çalıştırılabiliri ve argv üretimi. Saf katman: gerçek PlatformIO
 kurulu olmasa da geçer. """
+import os
+
 from embedded import pio_cli
+from tests.platform_commands import exe_name
 
 
 def test_build_argv():
@@ -49,23 +52,31 @@ def test_alt_komut_tablosu_tamamlamanin_kaynagi():
 
 
 def test_find_executable_pathten_bulur(tmp_path, monkeypatch):
-    sahte = tmp_path / "pio"
+    sahte = tmp_path / exe_name("pio")
     sahte.write_text("#!/bin/sh\n", encoding="utf-8")
     sahte.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path))
-    assert pio_cli.find_executable() == str(sahte)
+    # normcase: shutil.which Windows'ta yolu PATHEXT'in yazımıyla döndürüyor
+    # ('pio.EXE'), oysa dosyayı 'pio.exe' diye kurduk -- birebir dize
+    # karşılaştırması orada yalnız harf büyüklüğü yüzünden kırılır.
+    assert os.path.normcase(pio_cli.find_executable()) == os.path.normcase(str(sahte))
 
 
 def test_find_executable_platformio_adini_da_dener(tmp_path, monkeypatch):
-    sahte = tmp_path / "platformio"
+    sahte = tmp_path / exe_name("platformio")
     sahte.write_text("#!/bin/sh\n", encoding="utf-8")
     sahte.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path))
-    assert pio_cli.find_executable() == str(sahte)
+    # normcase: shutil.which Windows'ta yolu PATHEXT'in yazımıyla döndürüyor
+    # ('pio.EXE'), oysa dosyayı 'pio.exe' diye kurduk -- birebir dize
+    # karşılaştırması orada yalnız harf büyüklüğü yüzünden kırılır.
+    assert os.path.normcase(pio_cli.find_executable()) == os.path.normcase(str(sahte))
 
 
 def test_find_executable_penv_yedegi(tmp_path, monkeypatch):
-    """ PlatformIO'nun kendi kurucusu pio'yu PATH'e koymayabiliyor. """
+    """ PlatformIO'nun kendi kurucusu pio'yu PATH'e koymayabiliyor.
+    platform_name AÇIKÇA veriliyor: Windows'ta varsayılan dal Scripts/'e
+    bakar ve bu test kendi kurduğu dosyayı bulamazdı. """
     penv = tmp_path / ".platformio" / "penv" / "bin"
     penv.mkdir(parents=True)
     sahte = penv / "pio"
@@ -73,13 +84,37 @@ def test_find_executable_penv_yedegi(tmp_path, monkeypatch):
     sahte.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path / "bos"))
     monkeypatch.setenv("HOME", str(tmp_path))
-    assert pio_cli.find_executable() == str(sahte)
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert pio_cli.find_executable(platform_name="linux") == str(sahte)
+
+
+def test_find_executable_windows_penv_yedegi(tmp_path, monkeypatch):
+    """ Windows'ta penv betikleri 'Scripts' altında ve '.exe' uzantılı.
+    Dosyaya çalıştırma izni VERİLMİYOR: os.access(X_OK) Windows'ta var olan
+    hemen her dosya için True döndüğü ve hiçbir şey elemediği için kapı
+    os.path.isfile olmalı -- bu test tam onu ölçüyor. """
+    scripts = tmp_path / ".platformio" / "penv" / "Scripts"
+    scripts.mkdir(parents=True)
+    sahte = scripts / "pio.exe"
+    sahte.write_text("", encoding="utf-8")
+    monkeypatch.setenv("PATH", str(tmp_path / "bos"))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert pio_cli.find_executable(platform_name="win32") == str(sahte)
+
+
+def test_find_executable_windowsta_yoksa_none(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path / "bos"))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert pio_cli.find_executable(platform_name="win32") is None
 
 
 def test_find_executable_yoksa_none(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path / "bos"))
     monkeypatch.setenv("HOME", str(tmp_path))
-    assert pio_cli.find_executable() is None
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert pio_cli.find_executable(platform_name="linux") is None
 
 
 # --- ':pio init' (Sprint 11 sonrası) — projeyi OLUŞTURAN alt komut ---

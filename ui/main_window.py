@@ -322,7 +322,22 @@ class IDEWindow(QMainWindow):
 
     def _open_path(self, file_path):
         """ Dosyayı okuyup uygun sekmede açar. Sidebar, telescope paleti ve
-        ':openfile <yol>' aynı yoldan geçer. """
+        ':openfile <yol>' aynı yoldan geçer -- bu yüzden kanonikleştirme TAM
+        OLARAK burada yapılmalı.
+
+        Windows'ta üç giriş noktası aynı dosya için üç farklı dize üretir:
+        Sidebar (QFileSystemModel.filePath, Qt her platformda '/' kullanır)
+        'C:/proj/x.py' verir, telescope paleti (os.path.join(os.getcwd(),
+        payload), payload '/' ayraçlı) 'C:\\proj\\x.py' üretir (os.path.join
+        os'a özgü ayracı kullanır ama payload'daki '/'lere dokunmaz), ve
+        ':openfile' zaten os.path.normpath'ten geçmiş 'C:\\proj\\x.py' verir.
+        EditorTabs.open_file eşleştirmeyi BİREBİR DİZE karşılaştırmasıyla
+        yapıyor (editor.file_path == file_path) -- normpath olmadan aynı
+        dosya iki (hatta üç) farklı sekmede açılabilir, biri diskteki eski
+        içerikle; oradan ':w' yapmak diğer sekmedeki değişiklikleri
+        uyarısız kaybettirir. normpath ayraçları ve '.'/'..' bileşenlerini
+        tek bir kanonik forma indirger. """
+        file_path = os.path.normpath(file_path)
         try:
             content = FileManager.read_file(file_path)
         except UnicodeDecodeError:

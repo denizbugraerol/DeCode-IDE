@@ -1,6 +1,7 @@
 """ Testler için ortak kurulum. Qt'yi başsız (offscreen) çalıştırır: CI'da ya
 da SSH oturumunda ekran olmadan da testler geçmeli. """
 import os
+import sys
 import time
 
 # QApplication oluşturulmadan ÖNCE ayarlanmalı; bu yüzden import'ların en
@@ -60,12 +61,29 @@ def pencere(qapp):
     qapp.processEvents()
 
 
+# Windows'ta süreç bitişi ConPTY katmanında ~5 saniye gecikiyor. CI'da
+# ölçüldü: sekiz ardışık spawn'ın hepsi 5.031–5.062 saniye sürdü, oysa süreç
+# başarıyla bitiyor ve çıkış kodu ile ekran içeriği doğru geliyor. Eski
+# varsayılan olan 5.0 saniye tam o sınırda olduğu için bitişi bekleyen her
+# test yarışı milisaniyeyle kaybediyordu (11 test kırıktı).
+#
+# Gecikme pywinpty'nin Rust katmanında — ptyprocess.py'de 5 saniyelik bir
+# sabit yok (delayafterterminate 0.1, PTY timeout'u 30000ms), yani bloklayan
+# read()'i tutan şey iseof()'un geç True dönmesi olmalı. Python'dan
+# kaldırılamıyor; bilinçli olarak kabul edildi, bkz. docs/Roadmap.md teknik
+# borç tablosu.
+_ZAMAN_ASIMI = 20.0 if sys.platform == "win32" else 5.0
+
+
 @pytest.fixture
 def bekle(qapp):
     """ PTY testleri için: koşul sağlanana kadar Qt olay döngüsünü döndürür.
     QSocketNotifier yalnız olay döngüsü dönerken tetiklenir — süreç çıktısını
-    düz bir 'sleep' ile beklemek işe yaramaz, hiçbir zaman gelmez. """
-    def _bekle(kosul, zaman_asimi=5.0):
+    düz bir 'sleep' ile beklemek işe yaramaz, hiçbir zaman gelmez.
+
+    Varsayılan zaman aşımı platforma göre: Windows'ta 20 saniye (bkz.
+    _ZAMAN_ASIMI'nin üstündeki not), başka yerde 5. """
+    def _bekle(kosul, zaman_asimi=_ZAMAN_ASIMI):
         son = time.monotonic() + zaman_asimi
         while time.monotonic() < son:
             qapp.processEvents()

@@ -3,6 +3,7 @@ argv üretir. Süreci başlatmak bu modülün işi DEĞİL — argv'yi terminal 
 IDEWindow veriyor (bkz. ui/main_window.py). Saf Python, Qt yok. """
 import os
 import shutil
+import sys
 
 # Öneri listesinin ve ':pio ' tamamlamasının TEK kaynağı. 'env' süreç
 # başlatmaz (paleti açar), o yüzden PROCESS_SUBCOMMANDS'ta yoktur.
@@ -32,16 +33,32 @@ _ENV_SUBCOMMANDS = ("build", "upload", "clean", "monitor")
 PROCESS_SUBCOMMANDS = tuple(_ARGUMENTS)
 
 
-def find_executable():
+def find_executable(platform_name=None):
     """ 'pio' ya da 'platformio'yu PATH'te arar; bulamazsa PlatformIO'nun
-    kendi kurucusunun kullandığı ~/.platformio/penv/bin/pio yolunu dener.
-    Hiçbiri yoksa None — çağıran kullanıcıya kurulum ipucu verir. """
+    kendi kurucusunun kullandığı penv yolunu dener. Hiçbiri yoksa None --
+    çağıran kullanıcıya kurulum ipucu verir.
+
+    platform_name parametre olarak alınıyor ki Windows dalı LINUX'ta da test
+    edilebilsin (core.config.config_path ve main._qt_platform_hint ile aynı
+    desen). """
+    platform_name = sys.platform if platform_name is None else platform_name
+
+    # shutil.which PATHEXT'i zaten doğru işliyor: Windows'ta 'pio' araması
+    # 'pio.exe'yi bulur.
     for name in ("pio", "platformio"):
         path = shutil.which(name)
         if path:
             return path
 
-    fallback = os.path.join(os.path.expanduser("~"), ".platformio", "penv", "bin", "pio")
+    home = os.path.expanduser("~")
+    if platform_name == "win32":
+        # Windows'ta penv betikleri 'bin' değil 'Scripts' altında.
+        # os.access(X_OK) burada KULLANILMIYOR: orada var olan hemen her
+        # dosya için True döner, yani hiçbir şey elemez.
+        fallback = os.path.join(home, ".platformio", "penv", "Scripts", "pio.exe")
+        return fallback if os.path.isfile(fallback) else None
+
+    fallback = os.path.join(home, ".platformio", "penv", "bin", "pio")
     return fallback if os.access(fallback, os.X_OK) else None
 
 

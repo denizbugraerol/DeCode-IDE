@@ -135,7 +135,7 @@ class StateMachine:
         'hangi dizinde' (head) / 'hangi önekle' (fragment) diye ikiye ayırıp o
         dizindeki girdileri fragment'e göre filtreler. Dizinler sondaki '/'
         ile döner (ör. 'DeCode-IDE/') — Tab'a tekrar basıp iç içe dizinlere
-        inmeye devam edilebilsin diye. """
+        inmeye devam edilebilsin diye. Ayraç her platformda '/'dir. """
         head, fragment = os.path.split(path_part)
         search_dir = os.path.expanduser(head) if head else "."
 
@@ -158,7 +158,12 @@ class StateMachine:
 
             # Tamamlanan metinde kullanıcının yazdığı 'head' aynen korunur ('~'
             # burada genişletilmez — sadece arama dizini için genişletildi).
-            joined = os.path.join(head, name)
+            # Ayraç normalize ediliyor: os.path.join Windows'ta 'klasor\alt'
+            # üretir, sondaki ayraç ise aşağıda elle '/' ekleniyor -- ikisi
+            # karışınca öneri 'klasor\alt/' gibi görünürdü. Kanonik biçim
+            # POSIX tarzı; os.path.split ve open() Windows'ta '/'yi kabul
+            # ediyor, yani tamamlanan metin geri okunduğunda da çalışıyor.
+            joined = os.path.join(head, name).replace(os.sep, "/")
             matches.append((f"{command} {joined}/" if is_dir else f"{command} {joined}", ""))
 
         return matches

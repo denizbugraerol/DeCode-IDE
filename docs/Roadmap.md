@@ -55,7 +55,7 @@ tek dosya Linux çalıştırılabiliri. Yayınlanan sürümler için
   ve terminal satır sayısı özelleştirilebiliyor; `:reload` uygulamayı
   kapatmadan yeniden uyguluyor ([Sprint 09](sprint/sprint-09.md))
 - **Test altyapısı** — pytest, `QT_QPA_PLATFORM=offscreen` ile ekransız çalışan
-  197 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
+  288 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
   [10](sprint/sprint-10.md), [11](sprint/sprint-11.md)); her push'ta GitHub
   Actions'ta koşuyor
 
@@ -143,22 +143,31 @@ yer tutuyor.
   **Elle denenmedi:** projenin bir Mac'i yok, güvence otomatik testlerden
   geliyor (gerçek PTY testleri dahil, macOS runner'ında koşuyor).
 - Intel Mac (x86_64) — açık; ayrı bir `macos-13` matris satırı gerekir.
-- **Windows** — açık ve bir paketleme işi değil, port: `terminal_process.py`
-  `fcntl`, `pty`, `termios`, `SIGHUP` kullanıyor ve bunlar Windows'ta yok —
-  uygulama import anında çökür. Karşılığı ConPTY (`pywinpty`). Kodun
-  %94'ü zaten taşınabilir; engel bu 238 satırlık dosya.
+- Windows on ARM (arm64) — açık.
+- **Windows** — **tamamlandı** ([Sprint 14](sprint/sprint-14.md)):
+  `terminal_process.py` bir transport dikişine ayrıldı; ConPTY (`pywinpty`)
+  portu `core/pty_windows.py`'de, okuma `QSocketNotifier` yerine bir
+  `QThread`'de (Windows'ta notifier yalnız socket tanıtıcılarıyla çalışıyor).
+  `windows-latest` hem test hem release matrisinde.
+  **Elle doğrulama henüz yapılmadı:** macOS'un aksine kalıcı bir sınır değil
+  — projenin bir Windows makinesi var, ama bu sprint Linux'ta yürütüldü.
+  Tasarım dokümanındaki §Elle doğrulama listesindeki 13 madde release'in ön
+  koşulu.
 
 ## Teknik borç
 
 | Konu | Durum | Nerede |
 |---|---|---|
 | `__pycache__` deposu kirletiyor | Çözüldü ([Sprint 06](sprint/sprint-06.md)): kural eklendi, 14 `.pyc` takipten çıkarıldı | `.gitignore` |
-| Lint altyapısı yok | Test var (197 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| Lint altyapısı yok | Test var (288 test, pytest); lint/format aracı hâlâ seçilmedi | — |
 | CI yok | Çözüldü ([Sprint 11](sprint/sprint-11.md)): her push'ta pytest, `v*` tag'inde release build | `.github/workflows/` |
 | `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
 | Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | `embedded/` |
 | Bulanık skorlama açgözlü | Soldan ilk eşleşmeyi alır, en iyi hizalamayı aramaz | `core/fuzzy.py` |
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
+| Windows'ta süreç bitişi ~5 s gecikiyor | Kabul edildi (Sprint 14): ConPTY/`pywinpty` Rust katmanından geliyor, Python'dan kaldırılamıyor. Süreç doğru bitiyor, yalnız sekmedeki `✓`/`✗` geç görünüyor. Test zaman aşımı Windows'ta 20 s'ye çıkarıldı | `core/pty_windows.py`, `tests/conftest.py` |
+| Windows + offscreen'de font veritabanı boş | Kabul edildi (Sprint 14): offscreen plugin'inin orada font arka ucu yok, `QFontDatabase.families()` boş dönüyor. İki font testi o durumda atlanıyor; üretimi etkilemiyor | `tests/test_terminal_font.py` |
+| Türkçe mesajlar Windows'ta boruya yazılamıyor | Çözüldü ([Sprint 14](sprint/sprint-14.md)): `main()` en başta stdout/stderr'i UTF-8'e çeviriyor (`utf8_cikti_zorla`). Python boruya yazarken locale kodlamasını kullanıyordu (`cp1252`/`cp1254`) ve `ı`/`ş` oraya sığmıyordu; `DeCode.exe > log.txt` ilk Türkçe uyarıda çöküyordu. Satır sonu çevirisine dokunulmadı | `main.py` |
 | `forkpty()` çok iş parçacıklı süreçte | Uyarı duruyor; macOS'ta bunun yol açtığı kapanış kilidi çözüldü (`close()` artık yalnız `WNOHANG` ile bekliyor) | `core/terminal_process.py` |
 | Tema kodda sabit | Çözüldü ([Sprint 09](sprint/sprint-09.md)): renkler `ui/theme.py`'deki tek palete taşındı, ayar dosyasının `[colors]` bölümünden özelleştirilebiliyor | `ui/theme.py` |
 

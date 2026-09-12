@@ -10,9 +10,28 @@ ORANTILI bir aileye düşer; o zaman 'm' hücresinden taşıp komşusuna girer, 
 ise hücresinin yarısını boş bırakır -- kullanıcının gördüğü "harfler bazen iç
 içe giriyor, bazılarının arası fazla" hatası tam olarak budur. Aşağıdaki
 testler o düşüşü yakalar. """
-from PyQt6.QtGui import QFontMetricsF
+import pytest
+from PyQt6.QtGui import QFontDatabase, QFontMetricsF
 
 import ui.theme as theme
+
+
+def _font_veritabani_bos(qapp):
+    """ Qt'nin font veritabanında hiç aile var mı?
+
+    Windows'ta QT_QPA_PLATFORM=offscreen ile veritabanı TAMAMEN boş kalıyor
+    (CI'da ölçüldü: families() -> [], _first_monospace_family() -> None) --
+    offscreen plugin'inin orada font arka ucu yok. Linux'ta aynı plugin
+    fontconfig'i kullanıyor, bu yüzden .github/workflows/tests.yml orada
+    font paketleri kuruyor.
+
+    Boş veritabanında ölçüm dejenere: her aile 'monospace' görünüyor, çünkü
+    bütün glifler aynı (sıfır) genişliği veriyor. Aşağıdaki iki test o
+    durumda ölçecek bir şey bulamıyor.
+
+    Koşul platforma DEĞİL gerçek duruma bağlı: fontsuz bir Linux
+    konteynerinde de doğru davranır. """
+    return not QFontDatabase.families()
 
 # Terminalde gerçekten çizilen karakter kümesinin uçları: en dar ve en geniş
 # glifler orantılı bir fontta birbirinden ayrışır, monospace'te ayrışmaz.
@@ -28,6 +47,10 @@ def _genislikler(font):
 
 
 def test_cozulmeyen_font_sabit_genislikli_aileye_duser(qapp):
+    if _font_veritabani_bos(qapp):
+        pytest.skip("Qt font veritabanı boş (Windows + offscreen); "
+                    "ölçülecek aile yok -- bkz. _font_veritabani_bos")
+
     """ Kurulu olmayan bir aile istendiğinde orantılı varsayılana değil,
     sistemin monospace fontuna düşülmeli ve bu bir uyarıyla söylenmeli. """
     aile, uyarilar = theme.resolve_font_family("Kesinlikle Kurulu Olmayan Font", 15)
@@ -79,6 +102,10 @@ def test_editor_fontu_da_sabit_genislikli(pencere):
 
 
 def test_veritabani_taramasi_sabit_genislikli_aile_bulur(qapp):
+    if _font_veritabani_bos(qapp):
+        pytest.skip("Qt font veritabanı boş (Windows + offscreen); "
+                    "ölçülecek aile yok -- bkz. _font_veritabani_bos")
+
     """ styleHint(Monospace) fontconfig'in 'monospace' takma adına güvenir; o
     takma ad yoksa (minimal sistem, konteyner, CI runner'ı) orantılı bir aile
     döner. Son çare tarama gerçekten sabit genişlikli bir aile bulmalı. """

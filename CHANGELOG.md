@@ -1,5 +1,32 @@
 # Değişiklik Günlüğü
 
+## Yayınlanmamış
+
+Sürüm numarası ve tarih, `core/version.py` yükseltilip `v*` tag'i atılırken
+doldurulacak.
+
+### Eklendi
+- Windows desteği: `:term` ve bütün `:pio` alt komutları için ConPTY yolu
+  eklendi; tek dosya `.exe` GitHub Releases'te. (Windows derlemesi elle
+  denenmedi, bkz. "Bilinen sınırlar".)
+
+### Değişti
+- `TerminalProcess` bir transport dikişine ayrıldı (`core/pty_posix.py`,
+  `core/pty_windows.py`). POSIX davranışı değişmedi.
+- Ayar dosyası Windows'ta `%APPDATA%\decode\config.toml`.
+
+### Düzeltildi
+- Windows'ta çıktı yönlendirildiğinde (`DeCode.exe > log.txt`) Türkçe
+  uyarılar `UnicodeEncodeError` ile uygulamayı çökertiyordu: Python boruya
+  yazarken locale kod sayfasını kullanıyor ve `ı`/`ş` orada yok. `main()`
+  artık stdout/stderr'i UTF-8'e çeviriyor.
+
+### Bilinen sınırlar
+- Windows on ARM ve Intel Mac (x86_64) için hazır dosya yok.
+- `.exe` imzasız: SmartScreen ilk açılışta uyarı gösteriyor.
+- Windows derlemesi elle denenmedi; ConPTY yolu yalnız otomatik testler ve
+  statik doğrulamayla güvence altında.
+
 ## v0.3.0 — 10 Eyl 2026
 
 ### Eklendi

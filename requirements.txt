@@ -1,2 +1,11 @@
 PyQt6>=6.4
 pyte>=0.8.2
+# Alt sınır sıkı: core/pty_windows.py'deki TÜM statik güvence (isalive()'ın
+# 'closed' bayrağını her çağrıda yazması ve 'self._pty.closed = False' hack'i,
+# read()'in str dönmesi, spawn'ın liste argümanı kabul etmesi, setwinsize'ın
+# argüman sırası) 3.0.5 kaynağı okunarak doğrulandı. '>=2.0' hem
+# doğrulanmamış eski sürümlere hem gelecekteki bir 4.x'e açık kapı bırakırdı;
+# ihlal SESSİZ olurdu (hack no-op'a düşer, isalive() çağrılmaz -- soket ve
+# thread sızıntısı, hata mesajı yok). Üst sınır bu yüzden de var: 4.x
+# davranışı yeniden doğrulanmadan otomatik yükseltme istemiyoruz.
+pywinpty>=3.0,<4 ; sys_platform == "win32"

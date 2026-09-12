@@ -86,6 +86,21 @@ def test_openfile_tamamlamasi_dosyalari_da_verir(qapp, tmp_path, monkeypatch):
     assert "openfile klasor/" in metinler
 
 
+def test_yol_tamamlamasi_egik_cizgi_kullanir(qapp, tmp_path, monkeypatch):
+    """ Dizin önerileri tek tip ayraç taşımalı. os.path.join Windows'ta
+    'klasor\\alt' üretiyor, sondaki ayraç ise elle '/' ekleniyordu -- sonuç
+    'klasor\\alt/' gibi karışık bir dize oluyordu. """
+    (tmp_path / "klasor").mkdir()
+    (tmp_path / "klasor" / "alt").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    editor = _editor(qapp)
+    metinler = [ad for ad, _a in editor.state_machine._matches_for("cd klasor/")]
+
+    assert "cd klasor/alt/" in metinler
+    assert not any("\\" in metin for metin in metinler)
+
+
 def test_openfile_komutu_open_path_requested_yayinlar(qapp, tmp_path, monkeypatch):
     (tmp_path / "dosya.py").write_text("x")
     monkeypatch.chdir(tmp_path)
