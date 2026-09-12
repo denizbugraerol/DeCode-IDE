@@ -63,17 +63,19 @@ def _sure_olc(qapp, argv, zaman_asimi=30.0):
 
 
 def test_teshis_ardisik_spawn_sureleri(qapp):
-    """ Aynı komutu beş kez üst üste çalıştırıp her birinin süresini basar.
-    İlki yavaş, sonrakiler hızlıysa kök neden soğuk başlatma maliyetidir. """
-    print("\n--- echo_argv, 5 ardışık spawn ---", flush=True)
-    for i in range(1, 6):
-        sonuc = _sure_olc(qapp, echo_argv("merhaba"))
-        print(f"  {i}. spawn: {sonuc}", flush=True)
+    """ Aynı komutu beş kez üst üste çalıştırıp her birinin süresini ölçer.
+    İlki yavaş, sonrakiler hızlıysa kök neden soğuk başlatma maliyetidir.
 
-    print("\n--- exit_argv(1), 3 ardışık spawn ---", flush=True)
+    DİKKAT: sonuç pytest.fail ile raporlanıyor, print ile DEĞİL. pytest
+    GEÇEN testlerin stdout'unu yutuyor ve ilk denemede ölçümler tam bu
+    yüzden kayboldu. """
+    satirlar = ["echo_argv, 5 ardışık spawn:"]
+    for i in range(1, 6):
+        satirlar.append(f"  {i}. spawn: {_sure_olc(qapp, echo_argv('merhaba'))}")
+    satirlar.append("exit_argv(1), 3 ardışık spawn:")
     for i in range(1, 4):
-        sonuc = _sure_olc(qapp, exit_argv(1))
-        print(f"  {i}. spawn: {sonuc}", flush=True)
+        satirlar.append(f"  {i}. spawn: {_sure_olc(qapp, exit_argv(1))}")
+    pytest.fail("TEŞHİS (hata değil):\n" + "\n".join(satirlar), pytrace=False)
 
 
 def test_teshis_bekle_fixture_ile(qapp, bekle):
@@ -86,7 +88,7 @@ def test_teshis_bekle_fixture_ile(qapp, bekle):
     surec.start()
     sonuc = bekle(lambda: bool(kodlar))
     gecen = round(time.monotonic() - baslangic, 3)
-    print(f"\n--- bekle() fixture: sonuc={sonuc} gecen={gecen}s "
-          f"kodlar={kodlar} ekran={''.join(surec.screen.display).strip()[:40]!r}",
-          flush=True)
+    ekran = "".join(surec.screen.display).strip()[:40]
     surec.close()
+    pytest.fail(f"TEŞHİS (hata değil): bekle() sonuc={sonuc} gecen={gecen}s "
+                f"kodlar={kodlar} ekran={ekran!r}", pytrace=False)
