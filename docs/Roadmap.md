@@ -167,7 +167,7 @@ yer tutuyor.
 | C/C++ sembol çıkarma sezgisel | Çok satıra yayılan imzalar kaçabilir | `core/symbols.py` |
 | Windows'ta süreç bitişi ~5 s gecikiyor | Kabul edildi (Sprint 14): ConPTY/`pywinpty` Rust katmanından geliyor, Python'dan kaldırılamıyor. Süreç doğru bitiyor, yalnız sekmedeki `✓`/`✗` geç görünüyor. Test zaman aşımı Windows'ta 20 s'ye çıkarıldı | `core/pty_windows.py`, `tests/conftest.py` |
 | Windows + offscreen'de font veritabanı boş | Kabul edildi (Sprint 14): offscreen plugin'inin orada font arka ucu yok, `QFontDatabase.families()` boş dönüyor. İki font testi o durumda atlanıyor; üretimi etkilemiyor | `tests/test_terminal_font.py` |
-| Türkçe mesajlar Windows'ta boruya yazılamıyor | Açık: `sys.stdout` boruya gittiğinde Python locale kodlamasını kullanıyor (runner'da `cp1252`) ve `ı`/`ş` oraya sığmıyor -- `DeCode.exe > log.txt` ilk Türkçe uyarıda `UnicodeEncodeError` verebilir. İnteraktif konsol etkilenmiyor | `main.py`, `core/config.py`, `ui/theme.py` |
+| Türkçe mesajlar Windows'ta boruya yazılamıyor | Çözüldü ([Sprint 14](sprint/sprint-14.md)): `main()` en başta stdout/stderr'i UTF-8'e çeviriyor (`utf8_cikti_zorla`). Python boruya yazarken locale kodlamasını kullanıyordu (`cp1252`/`cp1254`) ve `ı`/`ş` oraya sığmıyordu; `DeCode.exe > log.txt` ilk Türkçe uyarıda çöküyordu. Satır sonu çevirisine dokunulmadı | `main.py` |
 | `forkpty()` çok iş parçacıklı süreçte | Uyarı duruyor; macOS'ta bunun yol açtığı kapanış kilidi çözüldü (`close()` artık yalnız `WNOHANG` ile bekliyor) | `core/terminal_process.py` |
 | Tema kodda sabit | Çözüldü ([Sprint 09](sprint/sprint-09.md)): renkler `ui/theme.py`'deki tek palete taşındı, ayar dosyasının `[colors]` bölümünden özelleştirilebiliyor | `ui/theme.py` |
 

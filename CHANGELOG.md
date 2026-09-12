@@ -15,6 +15,12 @@ doldurulacak.
   `core/pty_windows.py`). POSIX davranışı değişmedi.
 - Ayar dosyası Windows'ta `%APPDATA%\decode\config.toml`.
 
+### Düzeltildi
+- Windows'ta çıktı yönlendirildiğinde (`DeCode.exe > log.txt`) Türkçe
+  uyarılar `UnicodeEncodeError` ile uygulamayı çökertiyordu: Python boruya
+  yazarken locale kod sayfasını kullanıyor ve `ı`/`ş` orada yok. `main()`
+  artık stdout/stderr'i UTF-8'e çeviriyor.
+
 ### Bilinen sınırlar
 - Windows on ARM ve Intel Mac (x86_64) için hazır dosya yok.
 - `.exe` imzasız: SmartScreen ilk açılışta uyarı gösteriyor.
