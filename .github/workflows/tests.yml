@@ -54,6 +54,20 @@ jobs:
       # Kırılan testleri ::error:: ile annotation olarak yayınlıyoruz: iş
       # log'ları GitHub API'sinden kimlik doğrulaması ister, annotation'lar
       # public depolarda doğrulamasız okunur.
+      # GEÇİCİ TEŞHİS — kök neden bulunup düzeltilince bu adım ve
+      # tools/teshis_windows.py SİLİNECEK.
+      # Windows'ta 11 test kırılıyor; iki bilinmeyen var (ConPTY 'exited'
+      # sinyalini yaymıyor, font veritabanı taraması None döndürüyor) ve
+      # ikisi de kaynak okumakla çözülemedi. 'continue-on-error' bilinçli:
+      # teşhis çıktısı test sonucunu MASKELEMEMELİ.
+      - name: Teşhis (geçici, yalnız Windows)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONUNBUFFERED: "1"
+        run: python tools/teshis_windows.py
+
       - name: Testler
         env:
           QT_QPA_PLATFORM: offscreen

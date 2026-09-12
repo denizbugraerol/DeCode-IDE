@@ -1,5 +1,7 @@
 """ pio çalıştırılabiliri ve argv üretimi. Saf katman: gerçek PlatformIO
 kurulu olmasa da geçer. """
+import os
+
 from embedded import pio_cli
 from tests.platform_commands import exe_name
 
@@ -54,7 +56,10 @@ def test_find_executable_pathten_bulur(tmp_path, monkeypatch):
     sahte.write_text("#!/bin/sh\n", encoding="utf-8")
     sahte.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path))
-    assert pio_cli.find_executable() == str(sahte)
+    # normcase: shutil.which Windows'ta yolu PATHEXT'in yazımıyla döndürüyor
+    # ('pio.EXE'), oysa dosyayı 'pio.exe' diye kurduk -- birebir dize
+    # karşılaştırması orada yalnız harf büyüklüğü yüzünden kırılır.
+    assert os.path.normcase(pio_cli.find_executable()) == os.path.normcase(str(sahte))
 
 
 def test_find_executable_platformio_adini_da_dener(tmp_path, monkeypatch):
@@ -62,7 +67,10 @@ def test_find_executable_platformio_adini_da_dener(tmp_path, monkeypatch):
     sahte.write_text("#!/bin/sh\n", encoding="utf-8")
     sahte.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path))
-    assert pio_cli.find_executable() == str(sahte)
+    # normcase: shutil.which Windows'ta yolu PATHEXT'in yazımıyla döndürüyor
+    # ('pio.EXE'), oysa dosyayı 'pio.exe' diye kurduk -- birebir dize
+    # karşılaştırması orada yalnız harf büyüklüğü yüzünden kırılır.
+    assert os.path.normcase(pio_cli.find_executable()) == os.path.normcase(str(sahte))
 
 
 def test_find_executable_penv_yedegi(tmp_path, monkeypatch):
