@@ -1,5 +1,20 @@
 # Değişiklik Günlüğü
 
+## 10 Eyl 2026
+
+### Eklendi
+- Windows desteği: `:term` ve bütün `:pio` alt komutları ConPTY üzerinde
+  çalışıyor; tek dosya `.exe` GitHub Releases'te.
+
+### Değişti
+- `TerminalProcess` bir transport dikişine ayrıldı (`core/pty_posix.py`,
+  `core/pty_windows.py`). POSIX davranışı değişmedi.
+- Ayar dosyası Windows'ta `%APPDATA%\decode\config.toml`.
+
+### Bilinen sınırlar
+- Windows on ARM ve Intel Mac (x86_64) için hazır dosya yok.
+- `.exe` imzasız: SmartScreen ilk açılışta uyarı gösteriyor.
+
 ## v0.3.0 — 10 Eyl 2026
 
 ### Eklendi

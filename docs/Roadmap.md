@@ -55,7 +55,7 @@ tek dosya Linux çalıştırılabiliri. Yayınlanan sürümler için
   ve terminal satır sayısı özelleştirilebiliyor; `:reload` uygulamayı
   kapatmadan yeniden uyguluyor ([Sprint 09](sprint/sprint-09.md))
 - **Test altyapısı** — pytest, `QT_QPA_PLATFORM=offscreen` ile ekransız çalışan
-  197 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
+  288 test ([Sprint 06](sprint/sprint-06.md), [09](sprint/sprint-09.md),
   [10](sprint/sprint-10.md), [11](sprint/sprint-11.md)); her push'ta GitHub
   Actions'ta koşuyor
 
@@ -143,17 +143,19 @@ yer tutuyor.
   **Elle denenmedi:** projenin bir Mac'i yok, güvence otomatik testlerden
   geliyor (gerçek PTY testleri dahil, macOS runner'ında koşuyor).
 - Intel Mac (x86_64) — açık; ayrı bir `macos-13` matris satırı gerekir.
-- **Windows** — açık ve bir paketleme işi değil, port: `terminal_process.py`
-  `fcntl`, `pty`, `termios`, `SIGHUP` kullanıyor ve bunlar Windows'ta yok —
-  uygulama import anında çökür. Karşılığı ConPTY (`pywinpty`). Kodun
-  %94'ü zaten taşınabilir; engel bu 238 satırlık dosya.
+- Windows on ARM (arm64) — açık.
+- **Windows** — **tamamlandı** ([Sprint 14](sprint/sprint-14.md)):
+  `terminal_process.py` bir transport dikişine ayrıldı; ConPTY (`pywinpty`)
+  portu `core/pty_windows.py`'de, okuma `QSocketNotifier` yerine bir
+  `QThread`'de (Windows'ta notifier yalnız socket tanıtıcılarıyla çalışıyor).
+  `windows-latest` hem test hem release matrisinde.
 
 ## Teknik borç
 
 | Konu | Durum | Nerede |
 |---|---|---|
 | `__pycache__` deposu kirletiyor | Çözüldü ([Sprint 06](sprint/sprint-06.md)): kural eklendi, 14 `.pyc` takipten çıkarıldı | `.gitignore` |
-| Lint altyapısı yok | Test var (197 test, pytest); lint/format aracı hâlâ seçilmedi | — |
+| Lint altyapısı yok | Test var (288 test, pytest); lint/format aracı hâlâ seçilmedi | — |
 | CI yok | Çözüldü ([Sprint 11](sprint/sprint-11.md)): her push'ta pytest, `v*` tag'inde release build | `.github/workflows/` |
 | `CLAUDE.md` güncel değil | Çözüldü ([Sprint 07](sprint/sprint-07.md)): komut satırı modeli, sekmeler, terminal ve Faz 2 modülleri yazıldı | `CLAUDE.md` |
 | Boş yer tutucular | `pio_cli.py` yazıldı ([Sprint 10](sprint/sprint-10.md)); `serial_reader.py` duruyor | `embedded/` |

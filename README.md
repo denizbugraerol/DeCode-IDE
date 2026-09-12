@@ -44,9 +44,20 @@ Developer üyeliği gerektirir ve uygulamanın çalışması için şart değild
 > ancak elle denenmedi: projenin bir Mac'i yok. Geri bildirim memnuniyetle
 > karşılanır.
 
-Intel Mac'ler ve Windows için hazır dosya yok. Windows'ta uygulama şu an hiç
-çalışmıyor: gömülü terminal `pty`/`fcntl`/`termios` kullanıyor ve bunların
-Windows karşılığı (ConPTY) henüz yazılmadı.
+**Windows (x86_64):**
+
+`DeCode-*-windows-x86_64.exe` dosyasını indirip çalıştırın — `chmod` ya da
+karantina kaldırma gerekmez.
+
+Binary imzasız olduğu için SmartScreen ilk açılışta "Windows protected your
+PC" uyarısı gösterir: **More info** → **Run anyway**. Kod imzalama bilinçli
+olarak yapılmıyor — ücretli, yıllık yenilenen bir sertifika gerektirir ve
+uygulamanın çalışması için şart değildir.
+
+Gereksinim: Windows 10 sürüm 1809 ya da üstü (terminal paneli ConPTY
+kullanıyor).
+
+Intel Mac'ler (x86_64) ve Windows on ARM için hazır dosya yok.
 
 ### Kaynaktan
 
@@ -141,7 +152,9 @@ diğeri için bir uyarı basılır.
 
 ## Ayarlar
 
-İlk açılışta `~/.config/decode/config.toml` yorumlu bir şablonla oluşturulur.
+İlk açılışta yorumlu bir şablon oluşturulur: Linux ve macOS'ta
+`~/.config/decode/config.toml`, Windows'ta `%APPDATA%\decode\config.toml`
+(`XDG_CONFIG_HOME` her platformda önceliklidir).
 `[editor]` (font ailesi/boyutu, sekme genişliği, `expand_tabs`, satır
 numarası), `[terminal]` (satır sayısı), `[shortcuts]` (10 eylemin tuş
 ataması) ve `[colors]` (17 adlandırılmış Tokyo Night tokeni) bölümleri vardır.
